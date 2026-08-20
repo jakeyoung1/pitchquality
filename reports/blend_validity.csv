@@ -1,0 +1,4 @@
+predictor,r,r_squared,n_pitchers
+model alone,0.6443,0.4151,330
+outcome alone,0.6369,0.4056,330
+50/50 blend,0.6827,0.4661,330
