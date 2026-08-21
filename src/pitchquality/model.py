@@ -108,6 +108,10 @@ def calibration_table(y_true: np.ndarray, y_prob: np.ndarray, bins: int = 10) ->
     """
     df = pd.DataFrame({"p": y_prob, "y": y_true})
     df["bin"] = pd.qcut(df["p"], bins, labels=False, duplicates="drop")
+    # A constant prediction column has no unique quantile edges, so qcut returns
+    # all NaN and the groupby below would drop every row — an empty calibration
+    # table rather than a loud failure. Collapse that case to a single bin.
+    df["bin"] = df["bin"].fillna(0)
     out = (
         df.groupby("bin")
         .agg(predicted=("p", "mean"), observed=("y", "mean"), n=("y", "size"))
