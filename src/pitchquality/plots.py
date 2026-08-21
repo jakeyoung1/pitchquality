@@ -83,3 +83,40 @@ def movement_map(df: pd.DataFrame, out: Path) -> None:
         _style(ax, f"{label} — expected whiff by movement", "Horizontal break (in, RHP frame)", "Induced vertical break (in)")
         fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04)
     fig.tight_layout(); fig.savefig(out); plt.close(fig)
+
+
+def crossover(sweep: pd.DataFrame, out: Path) -> None:
+    """Model vs outcome as predictors, across first-half sample size.
+
+    This is the headline result: the model leads in thin samples and the
+    pitcher's own results overtake it once there are enough swings to trust.
+    Plotting both curves on one axis makes the crossing point legible in a way
+    the table does not.
+    """
+    fig, ax = plt.subplots(figsize=(6.4, 4.8), dpi=170)
+    x = sweep["min_swings_h1"]
+    ax.plot(x, sweep["r_model"], "o-", color=ACCENT, lw=2, ms=6, label="Stuff model (expected whiff)")
+    ax.plot(x, sweep["r_outcome"], "s--", color=INK, lw=1.8, ms=5, label="Pitcher's own past whiff rate")
+
+    # Shade where each predictor is ahead.
+    ax.fill_between(x, sweep["r_model"], sweep["r_outcome"],
+                    where=sweep["r_model"] >= sweep["r_outcome"],
+                    color=ACCENT, alpha=0.12, interpolate=True)
+    ax.fill_between(x, sweep["r_model"], sweep["r_outcome"],
+                    where=sweep["r_model"] < sweep["r_outcome"],
+                    color=INK, alpha=0.10, interpolate=True)
+
+    # Mark the crossing point between the last model-lead and first outcome-lead row.
+    lead = sweep["r_model"] - sweep["r_outcome"]
+    flip = lead[lead < 0].index.min()
+    if flip is not None and flip > 0:
+        x0, x1 = x.iloc[flip - 1], x.iloc[flip]
+        ax.axvline((x0 + x1) / 2, color=MUTED, ls=":", lw=1.2)
+        ax.annotate("crossover", xy=((x0 + x1) / 2, ax.get_ylim()[0]),
+                    xytext=(6, 12), textcoords="offset points",
+                    fontsize=9, color=MUTED)
+
+    _style(ax, "Which predicts second-half whiff rate better?",
+           "First-half sample (minimum swings)", "Correlation with second-half whiff rate")
+    ax.legend(frameon=False, fontsize=9, loc="lower right")
+    fig.tight_layout(); fig.savefig(out); plt.close(fig)
