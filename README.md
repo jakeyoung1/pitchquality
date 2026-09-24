@@ -1,5 +1,7 @@
 # pitchquality — an expected-whiff model for pitch evaluation
 
+[![CI](https://github.com/jakeyoung1/pitchquality/actions/workflows/ci.yml/badge.svg)](https://github.com/jakeyoung1/pitchquality/actions/workflows/ci.yml)
+
 Estimates the probability that a swing misses, from the physical properties of
 the pitch. Trained on 2025 Statcast, evaluated on a **held-out 2026 season** the
 model never saw.
@@ -12,7 +14,7 @@ contaminated by the hitters he faced, where he located, and luck.
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python scripts_fetch.py      # download + cache Statcast (~2 min)
 .venv/bin/python -m pitchquality.cli   # fit, evaluate, write reports/
-.venv/bin/python -m pytest tests -q    # 26 tests
+.venv/bin/python -m pytest tests -q    # 45 tests
 ```
 
 ## Data
@@ -80,7 +82,11 @@ at ≥150 swings so only the predictor's sample varies:
 | 300 | 133 | .6151 | .6724 | **−.0573** |
 
 Whiff rate stabilizes quickly, so with 300 swings in hand a pitcher's own
-results win and the model should not be used in preference to them. The model's
+results win and the model should not be used in preference to them.
+
+![Correlation with second-half whiff rate by first-half sample size: the stuff model leads below roughly 125 swings, the pitcher's own whiff rate leads above it](reports/crossover.png)
+
+The model's
 advantage is concentrated exactly where scouting decisions are hardest: a
 prospect with 25 swings of data, a reliever just called up, a deadline target
 three weeks into a new pitch.
@@ -102,6 +108,9 @@ captured.
 - **Overconfident at the top.** Calibration is tight through the eighth decile,
   then drifts: the top decile predicts .767 and observes .720. High-stuff pitches
   are graded slightly too generously.
+
+  <img src="reports/calibration.png" alt="Calibration plot of predicted versus observed whiff rate, close to the diagonal until the top decile" width="480">
+
 - **Compressed at the velocity extremes.** The model under-predicts whiffs above
   99 mph and over-predicts below 90 — regularization pulling toward the mean.
 - **Whiff is not run prevention.** A swing-and-miss model says nothing about
@@ -123,6 +132,6 @@ src/pitchquality/
   grades.py     Stuff+ index, predictive validity, sample-size sweep, blending
   plots.py      calibration, velocity curve, movement maps, scatter
   cli.py        end-to-end pipeline
-tests/          26 tests
+tests/          45 tests
 reports/        CSVs + figures written by the pipeline
 ```
