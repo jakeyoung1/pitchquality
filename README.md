@@ -125,9 +125,10 @@ captured.
 
 ## Live dashboard
 
-**Live URL:** not deployed yet. The deploy config is ready, but the Render
-service has to be created from Jake's Render account: New, Blueprint, pick this
-repo and branch, keep the free plan. The URL goes on this line once it exists.
+**Live URL:** https://pitchquality.onrender.com
+
+It runs on Render's free plan, which sleeps when idle, so the first request
+after a quiet spell can take a minute.
 
 | Page | What it shows |
 |---|---|
@@ -160,8 +161,7 @@ reports/*.csv, *.png          data/pitchquality.db (SQLite)
 - **Model card.** The AUCs, validity tables, and figures come straight from the
   files in `reports/`.
 - **Deploy.** `render.yaml` defines one free web service. Render builds on every
-  push to the deployed branch. The free tier sleeps when idle, so the first
-  request after a quiet spell is slow.
+  push to the deployed branch.
 
 Run it locally:
 
