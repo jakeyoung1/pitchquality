@@ -14,7 +14,7 @@ contaminated by the hitters he faced, where he located, and luck.
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python scripts_fetch.py      # download + cache Statcast (~2 min)
 .venv/bin/python -m pitchquality.cli   # fit, evaluate, write reports/
-.venv/bin/python -m pytest tests -q    # 45 tests
+.venv/bin/python -m pytest tests -q    # 94 tests
 ```
 
 ## Data
@@ -123,6 +123,78 @@ captured.
 - **Grades are descriptive of a window**, not projections. There is no aging
   curve and no regression to a population prior.
 
+## Live dashboard
+
+LIVE_URL_PLACEHOLDER
+
+| Page | What it shows |
+|---|---|
+| `/` | 2026 leaderboard: search, sort, minimum-sample filter |
+| `/pitchers/{id}` | One pitcher's season line, rank, and pitch-type split |
+| `/model` | Model card: held-out AUCs, validity tests, figures, limitations |
+| `/api/leaderboard`, `/api/pitchers/{id}`, `/api/model-card`, `/api/health` | The same data as JSON. Interactive docs at `/docs` |
+
+The 2026 season is over, so the site shows a finished season. It does not score
+live games.
+
+### Architecture
+
+```
+reports/*.csv, *.png          data/pitchquality.db (SQLite)
+  model card numbers            pitches, leaderboard, meta
+  and figures                           |
+        \                               |  opened read-only
+         +------> src/pitchquality/web (FastAPI + Jinja) ------> Render free tier
+```
+
+- **Storage.** `data/pitchquality.db` holds three tables: `pitches` (one row per
+  scored pitch), `leaderboard` (one row per pitcher and season), and `meta`
+  (key/value: `model_version`, `last_fetch_date`, `train_auc`, `test_auc`). The
+  service reads those columns by name and never writes.
+- **Service.** `src/pitchquality/web` is a FastAPI app with server-rendered
+  pages and a few lines of JavaScript. It imports none of the modeling
+  code, so the deploy installs `requirements-web.txt` (FastAPI, Uvicorn, Jinja)
+  and skips pandas and scikit-learn.
+- **Model card.** The AUCs, validity tables, and figures come straight from the
+  files in `reports/`.
+- **Deploy.** `render.yaml` defines one free web service. Render builds on every
+  push to the deployed branch. The free tier sleeps when idle, so the first
+  request after a quiet spell is slow.
+
+Run it locally:
+
+```bash
+.venv/bin/pip install -e ".[dev,web]"
+.venv/bin/python -m pitchquality.web.seed        # build data/pitchquality.db from reports/
+.venv/bin/uvicorn pitchquality.web.app:app --reload
+```
+
+### What the database holds today
+
+The data pipeline that backfills the rest of 2026 and writes pitch-level rows
+has not landed yet. Until it does, `python -m pitchquality.web.seed` builds the
+database from the reports already committed here: the 554 pitcher grades in
+`reports/pitcher_stuff_grades.csv` and the held-out AUCs in
+`reports/model_performance.csv`. That covers 2026 through Aug 19. The `pitches`
+table is created empty and `train_auc` is left blank, because the repo holds no
+pitch-level data and no recorded training AUC. Nothing is filled in by hand.
+
+### How the daily refresh works
+
+The refresh is the pipeline's job, and it is designed around one constraint:
+Render's free tier has no persistent disk, so the database has to arrive with
+the deploy.
+
+1. A scheduled GitHub Actions job fetches any new Statcast pitches, scores them
+   with the saved model, and rewrites `data/pitchquality.db`.
+2. The job commits the database. Render sees the push and redeploys.
+3. The build runs `python -m pitchquality.web.seed --if-missing`. With a
+   committed database present, that step does nothing and the service serves
+   the pipeline's file. With none, it falls back to the seed described above.
+
+In the offseason step 1 finds no new pitches and the job changes nothing. Steps
+1 and 2 ship with the pipeline. Step 3 and the service are in this repo now.
+
 ## Layout
 
 ```
@@ -132,6 +204,8 @@ src/pitchquality/
   grades.py     Stuff+ index, predictive validity, sample-size sweep, blending
   plots.py      calibration, velocity curve, movement maps, scatter
   cli.py        end-to-end pipeline
-tests/          45 tests
+  web/          live API and dashboard (FastAPI, reads data/pitchquality.db)
+tests/          94 tests
 reports/        CSVs + figures written by the pipeline
+render.yaml     Render free-tier deploy for the dashboard
 ```

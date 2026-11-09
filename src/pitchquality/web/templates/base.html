@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} | pitchquality</title>
+  <meta name="description" content="Expected-whiff pitch grades from Statcast pitch shape. Trained on 2025, tested on a held-out 2026 season.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css?v=3">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap bar">
+      <a class="wordmark" href="/">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <circle cx="12" cy="12" r="10.25" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M6.2 3.9c2.6 2.2 3.9 4.9 3.9 8.1s-1.3 5.9-3.9 8.1M17.8 3.9c-2.6 2.2-3.9 4.9-3.9 8.1s1.3 5.9 3.9 8.1" fill="none" stroke="var(--seam)" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <span>pitchquality</span>
+      </a>
+      <nav aria-label="Primary">
+        <a href="/" {% if nav == "leaderboard" %}aria-current="page"{% endif %}>Leaderboard</a>
+        <a href="/model" {% if nav == "model" %}aria-current="page"{% endif %}>Model card</a>
+        <a href="/docs">API</a>
+      </nav>
+    </div>
+  </header>
+
+  {% if coverage.seeded_from_reports %}
+  <div class="notice" role="note">
+    <div class="wrap">
+      Showing the 2026 grades committed in this repo's reports, through
+      {{ coverage.last_fetch_date | nicedate }}. Pitch-level detail and the rest of the
+      season are added when the data pipeline lands.
+      <a href="/model#status">Details</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <main id="main" class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>
+        Statcast pitch data from Baseball Savant. Model trained on 2025 and tested on a
+        held-out 2026 season.
+        {% if meta.last_fetch_date %}Data through {{ meta.last_fetch_date | nicedate }}.{% endif %}
+        The 2026 season is over, so nothing here scores live games.
+      </p>
+      <p>
+        <a href="{{ repo_url }}">Source on GitHub</a>
+        <span aria-hidden="true">·</span>
+        <a href="/model">Model card</a>
+        <span aria-hidden="true">·</span>
+        <a href="/docs">API docs</a>
+      </p>
+    </div>
+  </footer>
+  <script src="/static/app.js?v=3" defer></script>
+</body>
+</html>

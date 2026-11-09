@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% set nav = "leaderboard" %}
+
+{% macro th(key, label, numeric=true, title="") %}
+<th scope="col" class="{{ 'num' if numeric }} {{ 'sorted' if sort == key }}"
+    {% if sort == key %}aria-sort="{{ 'descending' if desc else 'ascending' }}"{% endif %}>
+  <a href="{{ sort_link(key) }}" {% if title %}title="{{ title }}"{% endif %}>
+    {{ label }}{% if sort == key %}<span class="arrow" aria-hidden="true">{{ "▼" if desc else "▲" }}</span>{% endif %}
+  </a>
+</th>
+{% endmacro %}
+
+{% block content %}
+<section class="intro">
+  <p class="eyebrow">{{ season }} season</p>
+  <h1>{{ stuff_label }} leaderboard</h1>
+  <p class="lede">
+    How often a swing should miss, judged from the pitch's shape alone: velocity, spin,
+    movement, release, and approach angle. Location and count are left out, so the grade
+    describes the stuff rather than the results.
+    {% if meta.stuff_scale == "stuff_plus" %}100 is average and every 10 points is one standard deviation.{% endif %}
+  </p>
+</section>
+
+<dl class="tiles">
+  <div class="tile">
+    <dt>Pitchers</dt>
+    <dd>{{ season_total | intc }}</dd>
+  </div>
+  <div class="tile">
+    <dt>{{ sample_label }} scored</dt>
+    <dd>{{ season_sample | intc }}</dd>
+  </div>
+  <div class="tile">
+    <dt>Data through</dt>
+    <dd>{{ meta.last_fetch_date | nicedate }}</dd>
+  </div>
+  <div class="tile">
+    {% if meta.test_auc_stuff %}
+    <dt>Stuff model AUC</dt>
+    <dd>{{ meta.test_auc_stuff | half_up }}</dd>
+    {% else %}
+    <dt>Held-out AUC</dt>
+    <dd>{% if meta.test_auc %}{{ meta.test_auc | half_up }}{% else %}n/a{% endif %}</dd>
+    {% endif %}
+    <dd class="tile-note">held-out 2026, <a href="/model">model card</a></dd>
+  </div>
+</dl>
+
+<form class="filters" method="get" action="/" role="search">
+  <label class="field grow">
+    <span>Find a pitcher</span>
+    <input type="search" name="q" value="{{ q }}" placeholder="Name or MLBAM id" maxlength="80" autocomplete="off">
+  </label>
+  <label class="field">
+    <span>Minimum {{ sample_label | lower }}</span>
+    <select name="min" data-autosubmit>
+      {% for choice in min_choices %}
+      <option value="{{ choice if choice else '' }}" {% if choice == min %}selected{% endif %}>
+        {{ "All" if not choice else (choice | intc) ~ "+" }}
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+  {% if seasons | length > 1 %}
+  <label class="field">
+    <span>Season</span>
+    <select name="season" data-autosubmit>
+      {% for s in seasons %}
+      <option value="{{ s }}" {% if s == season %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  {% if sort != "avg_stuff" %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+  <button type="submit">Search</button>
+  {% if filtered %}<a class="clear" href="{{ link(q='', min='') }}">Clear</a>{% endif %}
+</form>
+
+{% if rows %}
+<div class="table-wrap">
+  <table class="board">
+    <caption class="sr-only">
+      {{ season }} pitchers ranked by {{ stuff_label }}. Column headers are links that sort the table.
+    </caption>
+    <thead>
+      <tr>
+        <th scope="col" class="num rank-col" title="Rank by {{ stuff_label }} among all {{ season_total }} pitchers">#</th>
+        {{ th("name", "Pitcher", numeric=false) }}
+        {{ th("pitches", sample_label, title="Scored " ~ (sample_label | lower)) }}
+        {{ th("avg_stuff", stuff_label, title="Grade from the stuff model") }}
+        {{ th("expected_whiff", "xWhiff", title="Expected whiff rate per swing, from the stuff model") }}
+        {{ th("actual_whiff", "Whiff", title="Actual whiff rate per swing") }}
+        {{ th("whiff_over_expected", "Whiff over exp.", title="Actual minus expected whiff rate") }}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      {% set woe = r.whiff_over_expected or 0 %}
+      <tr>
+        <td class="num rank-col">{{ r.rank }}</td>
+        <th scope="row" class="name"><a href="/pitchers/{{ r.id | urlencode }}">{{ r.name }}</a></th>
+        <td class="num">{{ r.pitches | intc }}</td>
+        <td class="num"><span class="grade {{ tier(r.avg_stuff) }}">{{ r.avg_stuff | stuff }}</span></td>
+        <td class="num">{{ r.expected_whiff | rate }}</td>
+        <td class="num">{{ r.actual_whiff | rate }}</td>
+        <td class="num woe">
+          <span class="woe-value {{ 'pos' if woe > 0 else ('neg' if woe < 0 else '') }}">{{ r.whiff_over_expected | signed }}</span>
+          <span class="woe-bar" aria-hidden="true">
+            <span class="{{ 'pos' if woe > 0 else 'neg' }}" style="width: {{ '%.1f' | format((woe | abs) / spread * 50) }}%"></span>
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<nav class="pager" aria-label="Pages">
+  <p>
+    {{ first_shown | intc }} to {{ last_shown | intc }} of {{ total | intc }}
+    {% if filtered %}matching{% endif %} pitchers
+  </p>
+  <div class="pager-links">
+    {% if page_number > 1 %}
+    <a href="{{ link(page=(page_number - 1) if page_number > 2 else '') }}" rel="prev">Previous</a>
+    {% else %}<span class="disabled">Previous</span>{% endif %}
+    <span class="page-count">Page {{ page_number }} of {{ pages }}</span>
+    {% if page_number < pages %}
+    <a href="{{ link(page=page_number + 1) }}" rel="next">Next</a>
+    {% else %}<span class="disabled">Next</span>{% endif %}
+  </div>
+</nav>
+{% else %}
+<div class="empty">
+  <p>No pitchers match{% if q %} “{{ q }}”{% endif %}{% if min %} with at least {{ min | intc }} {{ sample_label | lower }}{% endif %}.</p>
+  <p><a href="/">Show the whole leaderboard</a></p>
+</div>
+{% endif %}
+
+<section class="key">
+  <h2>Reading the table</h2>
+  <dl>
+    <div>
+      <dt>{{ stuff_label }}</dt>
+      <dd>Expected whiff rate from the stuff model, put on an index.</dd>
+    </div>
+    <div>
+      <dt>xWhiff and Whiff</dt>
+      <dd>Expected and actual whiff rate per swing. A pitch nobody swings at is not counted.</dd>
+    </div>
+    <div>
+      <dt>Whiff over expected</dt>
+      <dd>
+        Actual minus expected. Pitchers well above zero get misses their raw stuff does
+        not explain, which points at deception or sequencing.
+      </dd>
+    </div>
+  </dl>
+</section>
+{% endblock %}

@@ -1,0 +1,15 @@
+# Render blueprint for the live API and dashboard. Free tier only.
+services:
+  - type: web
+    name: pitchquality
+    runtime: python
+    plan: free
+    # The seed step only runs when data/pitchquality.db is absent, so a
+    # database written by the data pipeline is never replaced.
+    buildCommand: pip install -r requirements-web.txt && PYTHONPATH=src python -m pitchquality.web.seed --if-missing
+    startCommand: uvicorn --app-dir src pitchquality.web.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"

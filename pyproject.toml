@@ -9,7 +9,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "fastapi>=0.115", "jinja2>=3.1", "httpx>=0.27"]
+# The live API and dashboard. Render installs requirements-web.txt instead,
+# which pins these and skips the modeling stack.
+web = ["fastapi>=0.115", "uvicorn>=0.30", "jinja2>=3.1"]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -17,3 +20,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"pitchquality.web" = ["templates/*.html", "static/*"]

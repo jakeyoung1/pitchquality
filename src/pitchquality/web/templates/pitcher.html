@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% set nav = "leaderboard" %}
+
+{% macro strip_chart(strip, label, selected_text, lo_text, hi_text, median_text) %}
+<figure class="strip">
+  <figcaption>{{ label }}</figcaption>
+  <div class="strip-plot">
+    <svg viewBox="0 0 1000 40" preserveAspectRatio="none" role="img"
+         aria-label="{{ label }}: {{ selected_text }}, range {{ lo_text }} to {{ hi_text }}, median {{ median_text }}">
+      {% for x in strip.ticks %}<line class="tick" x1="{{ x }}" x2="{{ x }}" y1="8" y2="32"/>{% endfor %}
+      <line class="median" x1="{{ strip.median }}" x2="{{ strip.median }}" y1="2" y2="38"/>
+      <line class="selected" x1="{{ strip.selected }}" x2="{{ strip.selected }}" y1="0" y2="40"/>
+    </svg>
+    <span class="strip-flag" style="left: clamp(22px, {{ '%.2f' | format(strip.selected / 10) }}%, calc(100% - 22px))">{{ selected_text }}</span>
+  </div>
+  <div class="strip-scale">
+    <span>{{ lo_text }}</span>
+    <span>median {{ median_text }}</span>
+    <span>{{ hi_text }}</span>
+  </div>
+</figure>
+{% endmacro %}
+
+{% macro breakdown(rows, first_label, kind) %}
+<div class="table-wrap">
+  <table class="board compact">
+    <thead>
+      <tr>
+        <th scope="col">{{ first_label }}</th>
+        <th scope="col" class="num">{{ sample_label }}</th>
+        {% if kind == "type" %}<th scope="col" class="num">Share</th>{% endif %}
+        <th scope="col" class="num">{{ stuff_label if kind == "season" else "Stuff" }}</th>
+        <th scope="col" class="num">xWhiff</th>
+        <th scope="col" class="num">Whiff</th>
+        <th scope="col" class="num">Whiff over exp.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <th scope="row">
+          {% if kind == "type" %}
+            {{ pitch_names.get(r.pitch_type, r.pitch_type) }}
+            {% if r.pitch_type in pitch_names %}<span class="code">{{ r.pitch_type }}</span>{% endif %}
+          {% elif kind == "month" %}{{ r.month | nicemonth }}
+          {% else %}{{ r.season }}{% endif %}
+        </th>
+        <td class="num">{{ r.pitches | intc }}</td>
+        {% if kind == "type" %}<td class="num">{{ "%.0f" | format(r.share * 100) }}%</td>{% endif %}
+        <td class="num">{{ r.avg_stuff | stuff }}</td>
+        <td class="num">{{ r.expected_whiff | rate }}</td>
+        <td class="num">{{ r.actual_whiff | rate }}</td>
+        <td class="num">{{ r.whiff_over_expected | signed }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{% block content %}
+<p class="crumb"><a href="/">Leaderboard</a> <span aria-hidden="true">/</span> {{ pitcher.name }}</p>
+
+<section class="intro">
+  <p class="eyebrow">{{ line.season }} season</p>
+  <h1>{{ pitcher.name }}</h1>
+  <p class="lede sub">
+    {% if savant_url %}MLBAM {{ line.id }} · <a href="{{ savant_url }}" rel="noopener">Baseball Savant page</a>{% endif %}
+  </p>
+</section>
+
+<dl class="tiles five">
+  <div class="tile lead">
+    <dt>{{ stuff_label }}</dt>
+    <dd><span class="grade big {{ tier }}">{{ line.avg_stuff | stuff }}</span></dd>
+    <dd class="tile-note">Rank {{ line.rank }} of {{ line.season_size }}</dd>
+  </div>
+  <div class="tile">
+    <dt>Expected whiff</dt>
+    <dd>{{ line.expected_whiff | rate }}</dd>
+    <dd class="tile-note">from the stuff model</dd>
+  </div>
+  <div class="tile">
+    <dt>Actual whiff</dt>
+    <dd>{{ line.actual_whiff | rate }}</dd>
+    <dd class="tile-note">per swing</dd>
+  </div>
+  <div class="tile">
+    <dt>Whiff over expected</dt>
+    {% set woe = line.whiff_over_expected or 0 %}
+    <dd class="{{ 'pos' if woe > 0 else ('neg' if woe < 0 else '') }}">{{ line.whiff_over_expected | signed }}</dd>
+    <dd class="tile-note">Rank {{ line.woe_rank }} of {{ line.season_size }}</dd>
+  </div>
+  <div class="tile">
+    <dt>{{ sample_label }}</dt>
+    <dd>{{ line.pitches | intc }}</dd>
+    <dd class="tile-note">scored by the model</dd>
+  </div>
+</dl>
+
+{% if strip or woe_strip %}
+<section class="panel">
+  <h2>Against the rest of the board</h2>
+  <p class="panel-note">Each tick is one of the {{ line.season_size }} pitchers on the {{ line.season }} leaderboard.</p>
+  {% if strip %}
+  {{ strip_chart(strip, stuff_label, line.avg_stuff | stuff, strip.lo | stuff, strip.hi | stuff, strip.median_value | stuff) }}
+  {% endif %}
+  {% if woe_strip %}
+  {{ strip_chart(woe_strip, "Whiff over expected", line.whiff_over_expected | signed, woe_strip.lo | signed, woe_strip.hi | signed, woe_strip.median_value | signed) }}
+  {% endif %}
+</section>
+{% endif %}
+
+{% if notes %}
+<section class="panel">
+  <h2>What the line says</h2>
+  <ul class="notes">
+    {% for note in notes %}<li>{{ note }}</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>By pitch type</h2>
+  {% if detail.pitch_types %}
+  {{ breakdown(detail.pitch_types, "Pitch", "type") }}
+  {% else %}
+  <p class="panel-note">
+    {% if has_pitch_rows %}
+    The database has no pitch-level rows for this pitcher in {{ line.season }}.
+    {% else %}
+    The database has no pitch-level rows yet, so there is no pitch mix to show. The
+    season line above comes from the leaderboard table. Pitch types and a monthly split
+    appear here once the data pipeline writes the pitches table.
+    {% endif %}
+  </p>
+  {% endif %}
+</section>
+
+{% if detail.months %}
+<section class="panel">
+  <h2>By month</h2>
+  {{ breakdown(detail.months, "Month", "month") }}
+</section>
+{% endif %}
+
+{% if other_seasons %}
+<section class="panel">
+  <h2>Other seasons</h2>
+  {{ breakdown(other_seasons, "Season", "season") }}
+</section>
+{% endif %}
+
+<nav class="neighbors" aria-label="Neighbors by rank">
+  {% if previous %}
+  <a href="/pitchers/{{ previous.id | urlencode }}" rel="prev">
+    <span>Rank {{ previous.rank }}</span>{{ previous.name }}
+  </a>
+  {% else %}<span></span>{% endif %}
+  {% if next %}
+  <a class="right" href="/pitchers/{{ next.id | urlencode }}" rel="next">
+    <span>Rank {{ next.rank }}</span>{{ next.name }}
+  </a>
+  {% endif %}
+</nav>
+
+<p class="api-hint">Same data as JSON: <a href="/api/pitchers/{{ line.id | urlencode }}">/api/pitchers/{{ line.id }}</a></p>
+{% endblock %}

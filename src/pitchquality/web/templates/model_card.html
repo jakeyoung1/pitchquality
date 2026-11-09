@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% set nav = "model" %}
+{% set k = card.key_numbers %}
+
+{% macro dec(value, places=4) %}{{ ("%." ~ places ~ "f") | format(value) | replace("0.", ".", 1) }}{% endmacro %}
+
+{% block content %}
+<section class="intro">
+  <p class="eyebrow">Model card</p>
+  <h1>An expected-whiff model for pitch evaluation</h1>
+  <p class="lede">
+    The model estimates the probability that a swing misses from the physical properties
+    of the pitch. It was trained on 2025 Statcast and evaluated on a 2026 season it never
+    saw. The aim is to separate stuff, which travels with the pitcher, from results, which
+    also carry the hitters he faced, where he located, and luck.
+  </p>
+</section>
+
+<section class="panel status" id="status">
+  <h2>What this site shows</h2>
+  <p>
+    The 2026 MLB season is over. Nothing on this site scores live games. The database
+    holds the {{ seasons | join(", ") }} season{{ "s" if seasons | length > 1 }}
+    {% if card.coverage.first_game_date %}from {{ card.coverage.first_game_date | nicedate }}{% endif %}
+    through <strong>{{ card.coverage.last_fetch_date | nicedate }}</strong>, covering
+    {{ pitchers | intc }} pitchers.
+  </p>
+  {% if card.coverage.seeded_from_reports %}
+  <p>
+    This build reads a database seeded from the reports committed in the repo. Those
+    reports stop at {{ card.coverage.last_fetch_date | nicedate }}, so the last weeks of
+    the season are not in yet, and there are no pitch-level rows behind the pitcher pages.
+    Both arrive when the data pipeline lands. Until then every number here is one the
+    repo already published.
+  </p>
+  {% else %}
+  <p>
+    A scheduled job checks for new pitches each day. In the offseason it finds none and
+    changes nothing.
+  </p>
+  {% endif %}
+</section>
+
+<dl class="tiles">
+  <div class="tile lead">
+    <dt>Full model AUC</dt>
+    <dd>{{ k.full_auc or "n/a" }}</dd>
+    <dd class="tile-note">stuff, location, and count</dd>
+  </div>
+  <div class="tile">
+    <dt>Stuff model AUC</dt>
+    <dd>{{ k.stuff_auc or "n/a" }}</dd>
+    <dd class="tile-note">release characteristics only</dd>
+  </div>
+  <div class="tile">
+    <dt>Baseline AUC</dt>
+    <dd>{{ k.baseline_auc or "n/a" }}</dd>
+    <dd class="tile-note">pitch-type mean whiff rate</dd>
+  </div>
+  <div class="tile">
+    <dt>Approach-angle fix</dt>
+    <dd>{{ k.stuff_auc_before_vaa }} <span class="arrow-to" aria-label="to">→</span> {{ k.stuff_auc or "n/a" }}</dd>
+    <dd class="tile-note">stuff model, before and after</dd>
+  </div>
+</dl>
+<p class="panel-note center">All AUCs are on the held-out 2026 season. The leaderboard uses the stuff model.</p>
+
+<section class="panel prose">
+  <h2>The fix that mattered</h2>
+  <p>
+    The first version of the stuff model scored {{ k.stuff_auc_before_vaa }} AUC and lost
+    the predictive-validity test: a pitcher's own past whiff rate forecast his future
+    whiff rate better than the model did. That is the right reason to reject a model, so
+    the question became what it could not see.
+  </p>
+  <p>
+    The answer was approach angle. Statcast publishes trajectory as position, velocity,
+    and acceleration 50 feet from the plate, so the angle the hitter sees has to be
+    integrated forward. A flat vertical approach angle at the top of the zone misses bats
+    that the same velocity and spin would not miss on a steeper plane. Adding vertical and
+    horizontal approach angle moved the stuff model from {{ k.stuff_auc_before_vaa }} to
+    {{ k.stuff_auc }} AUC.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Data</h2>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead>
+        <tr>
+          <th scope="col">Season</th>
+          <th scope="col" class="num">Pitches</th>
+          <th scope="col" class="num">Swings</th>
+          <th scope="col" class="num">Whiff rate</th>
+          <th scope="col">Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in card.data %}
+        <tr>
+          <th scope="row">{{ row.season }}</th>
+          <td class="num">{{ row.pitches }}</td>
+          <td class="num">{{ row.swings }}</td>
+          <td class="num">{{ row.whiff_rate }}</td>
+          <td>{{ row.role }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="panel-note">
+    Whiff is conditioned on a swing. Modeling whiffs per pitch would mix pitch quality
+    with plate discipline: a pitch nobody offers at would score well for the wrong reason.
+  </p>
+</section>
+
+{% if card.performance %}
+<section class="panel">
+  <h2>Held-out performance</h2>
+  <p class="panel-note">Trained on 2025, tested on 2026.</p>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead>
+        <tr>
+          <th scope="col">Model</th>
+          <th scope="col" class="num">AUC</th>
+          <th scope="col" class="num">Log loss</th>
+          <th scope="col" class="num">Brier</th>
+          <th scope="col" class="num">Swings</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in card.performance %}
+        <tr>
+          <th scope="row">{{ row.model | capitalize }}</th>
+          <td class="num">{{ dec(row.auc) }}</td>
+          <td class="num">{{ dec(row.log_loss) }}</td>
+          <td class="num">{{ dec(row.brier, 5) }}</td>
+          <td class="num">{{ row.n_pitches | intc }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if card.predictive_validity %}
+<section class="panel">
+  <h2>Does the grade predict anything?</h2>
+  <p class="panel-note">
+    The 2026 test season is split at its median date. Each first-half number is used to
+    forecast second-half whiff rate for the same
+    {{ card.predictive_validity[0].n_pitchers }} pitchers.
+  </p>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead>
+        <tr>
+          <th scope="col">First-half predictor</th>
+          <th scope="col" class="num">r</th>
+          <th scope="col" class="num">R²</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in card.predictive_validity %}
+        <tr>
+          <th scope="row">{{ row.predictor | capitalize }}</th>
+          <td class="num">{{ dec(row.r) }}</td>
+          <td class="num">{{ dec(row.r_squared) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="panel-note">
+    The model beats raw outcomes, but narrowly. The defensible claim is that stuff carries
+    information results do not, which is why the blend beats either one alone.
+  </p>
+
+  {% if card.validity_by_threshold %}
+  <h3>Where the model earns its keep</h3>
+  <p class="panel-note">
+    The first-half sample threshold varies. The second-half target is held at 150 or more
+    swings so only the predictor's sample changes.
+  </p>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead>
+        <tr>
+          <th scope="col">Min swings, first half</th>
+          <th scope="col" class="num">Pitchers</th>
+          <th scope="col" class="num">r, model</th>
+          <th scope="col" class="num">r, outcome</th>
+          <th scope="col" class="num">Model advantage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in card.validity_by_threshold %}
+        <tr>
+          <th scope="row">{{ row.min_swings_h1 }}</th>
+          <td class="num">{{ row.n_pitchers }}</td>
+          <td class="num">{{ dec(row.r_model) }}</td>
+          <td class="num">{{ dec(row.r_outcome) }}</td>
+          <td class="num {{ 'pos' if row.model_advantage > 0 else 'neg' }}">{{ "+" if row.model_advantage > 0 else "−" }}{{ dec(row.model_advantage | abs) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="panel-note">
+    Whiff rate stabilizes quickly. With 300 swings in hand a pitcher's own results win,
+    and the model should not be used in preference to them. Its edge sits where the
+    sample is thin: a prospect with 25 swings of data, or a reliever just called up.
+  </p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if card.figures %}
+<section class="panel">
+  <h2>Figures</h2>
+  <p class="panel-note">Written by the modeling pipeline to the repo's reports folder.</p>
+  <div class="figures">
+    {% for fig in card.figures %}
+    <figure>
+      <a href="{{ fig.url }}"><img src="{{ fig.url }}" alt="{{ fig.alt }}" loading="lazy"></a>
+      <figcaption>{{ fig.alt }}</figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if card.calibration %}
+<section class="panel">
+  <h2>Calibration by decile</h2>
+  <p class="panel-note">Full model on the held-out season. Gap is observed minus predicted.</p>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead>
+        <tr>
+          <th scope="col" class="num">Decile</th>
+          <th scope="col" class="num">Predicted</th>
+          <th scope="col" class="num">Observed</th>
+          <th scope="col" class="num">Gap</th>
+          <th scope="col" class="num">Swings</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in card.calibration %}
+        <tr>
+          <td class="num">{{ loop.index }}</td>
+          <td class="num">{{ row.predicted | rate }}</td>
+          <td class="num">{{ row.observed | rate }}</td>
+          <td class="num">{{ row.gap | signed }}</td>
+          <td class="num">{{ row.n | intc }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2>Known limitations</h2>
+  <dl class="limits">
+    {% for item in card.limitations %}
+    <div>
+      <dt>{{ item.title }}</dt>
+      <dd>{{ item.detail }}</dd>
+    </div>
+    {% endfor %}
+  </dl>
+</section>
+
+<section class="panel">
+  <h2>Database metadata</h2>
+  <p class="panel-note">Read from the meta table at request time.</p>
+  <div class="table-wrap">
+    <table class="board compact meta">
+      <tbody>
+        <tr><th scope="row">model_version</th><td>{{ meta.model_version or "not recorded" }}</td></tr>
+        <tr><th scope="row">last_fetch_date</th><td>{{ meta.last_fetch_date or "not recorded" }}</td></tr>
+        <tr>
+          <th scope="row">train_auc</th>
+          <td>{% if meta.train_auc %}{{ meta.train_auc }}{% else %}not recorded. The repo's reports hold held-out AUCs only.{% endif %}</td>
+        </tr>
+        <tr><th scope="row">test_auc</th><td>{{ meta.test_auc or "not recorded" }}</td></tr>
+        {% for key, value in meta.items() if key not in ("model_version", "last_fetch_date", "train_auc", "test_auc") %}
+        <tr><th scope="row">{{ key }}</th><td>{{ value if value is not none else "not recorded" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>API</h2>
+  <ul class="endpoints">
+    <li><a href="/api/leaderboard"><code>GET /api/leaderboard</code></a> ranked pitchers, with search, sort, and paging</li>
+    <li><code>GET /api/pitchers/{id}</code> one pitcher's season lines and pitch breakdown</li>
+    <li><a href="/api/model-card"><code>GET /api/model-card</code></a> everything on this page as JSON</li>
+    <li><a href="/api/health"><code>GET /api/health</code></a> database status</li>
+  </ul>
+  <p class="panel-note">Interactive docs are at <a href="/docs">/docs</a>. Source is on <a href="{{ repo_url }}">GitHub</a>.</p>
+</section>
+{% endblock %}

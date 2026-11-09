@@ -1,0 +1,6 @@
+# Runtime for the deployed API and dashboard only (render.yaml).
+# The modeling stack (pandas, scikit-learn, pybaseball) is not needed to serve
+# data/pitchquality.db and stays out of the Render build.
+fastapi==0.162.2
+uvicorn==0.54.0
+jinja2==3.1.6
