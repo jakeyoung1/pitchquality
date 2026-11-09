@@ -1,0 +1,4 @@
+model,auc,log_loss,brier,n_pitches
+baseline (pitch-type mean),0.6134,0.5233,0.1716,264548
+stuff (no location),0.7668,0.4469,0.14203,264548
+full (stuff + location + count),0.7875,0.4304,0.13601,264548
