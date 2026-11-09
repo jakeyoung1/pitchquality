@@ -125,7 +125,9 @@ captured.
 
 ## Live dashboard
 
-LIVE_URL_PLACEHOLDER
+**Live URL:** not deployed yet. The deploy config is ready, but the Render
+service has to be created from Jake's Render account: New, Blueprint, pick this
+repo and branch, keep the free plan. The URL goes on this line once it exists.
 
 | Page | What it shows |
 |---|---|
