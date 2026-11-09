@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import warnings
+import argparse
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
 import pandas as pd
 
-from . import features, grades, model, plots
+from . import artifacts, features, grades, model, plots
 
 DATA = Path("data")
 REPORTS = Path("reports")
@@ -21,6 +22,12 @@ def load(season: str) -> pd.DataFrame:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--save-model", type=Path,
+                        help="Save this one-time baseline fit; refuses to overwrite an artifact")
+    args = parser.parse_args()
+    if args.save_model and (args.save_model.exists() or args.save_model.with_suffix(".json").exists()):
+        parser.error("Frozen model already exists; scoring uses python -m pitchquality.live")
     REPORTS.mkdir(exist_ok=True)
     print(f"loading {TRAIN_SEASON} (train) and {TEST_SEASON} (holdout)...", flush=True)
     train, test = load(TRAIN_SEASON), load(TEST_SEASON)
@@ -47,6 +54,26 @@ def main() -> None:
     print("\n=== HELD-OUT PERFORMANCE (train 2025 -> test 2026) ===")
     print(results.to_string(index=False))
     results.to_csv(REPORTS / "model_performance.csv", index=False)
+
+    if args.save_model:
+        train_stuff = model.predict(m_stuff, train, n_stuff)
+        train_full = model.predict(m_full, train, n_full)
+        y_train = train["is_whiff"].astype(int).to_numpy()
+        artifacts.save(args.save_model, (m_stuff, n_stuff), (m_full, n_full), {
+            "train_season": TRAIN_SEASON, "test_season": TEST_SEASON,
+            "train_start": "2025-03-27", "train_end": "2025-09-28",
+            "test_start": "2026-03-26", "test_end": "2026-08-19",
+            "train_source_rows": len(pd.read_parquet(DATA / "statcast_2025.parquet")),
+            "test_source_rows": len(pd.read_parquet(DATA / "statcast_2026.parquet")),
+            "train_swings": len(train), "test_swings": len(test),
+            "train_auc": model.evaluate("full train", y_train, train_full).auc,
+            "test_auc": evals[2].auc,
+            "stuff_train_auc": model.evaluate("stuff train", y_train, train_stuff).auc,
+            "stuff_test_auc": evals[1].auc,
+            "stuff_reference_mean": float(train_stuff.mean()),
+            "stuff_reference_std": float(train_stuff.std(ddof=0)),
+        })
+        print(f"saved frozen models -> {args.save_model}", flush=True)
 
     calib = model.calibration_table(y_test, p_full)
     print("\n=== CALIBRATION (full model, deciles) ===")
