@@ -14,7 +14,7 @@ contaminated by the hitters he faced, where he located, and luck.
 python3.12 -m venv .venv && .venv/bin/pip install -c requirements-model.txt -e ".[dev]"
 .venv/bin/python scripts_fetch.py      # download + cache Statcast (~2 min)
 .venv/bin/python -m pitchquality.cli   # fit, evaluate, write reports/
-.venv/bin/python -m pytest tests -q    # 58 tests
+.venv/bin/python -m pytest tests -q    # 112 tests
 ```
 
 ## Data
@@ -123,6 +123,90 @@ captured.
 - **Grades are descriptive of a window**, not projections. There is no aging
   curve and no regression to a population prior.
 
+## Live dashboard
+
+**Live URL:** https://pitchquality.onrender.com
+
+It runs on Render's free plan, which sleeps when idle, so the first request
+after a quiet spell can take a minute.
+
+| Page | What it shows |
+|---|---|
+| `/` | 2026 leaderboard: search, sort, minimum-swings filter |
+| `/pitchers/{id}` | One pitcher's season line and rank, with splits by pitch type, month, and regular season versus postseason |
+| `/model` | Model card: held-out AUCs, the saved model's own AUCs, validity tests, figures, limitations |
+| `/api/leaderboard`, `/api/pitchers/{id}`, `/api/model-card`, `/api/health` | The same data as JSON. Interactive docs at `/docs` |
+
+The 2026 season is over, so the site shows the finished season, March 26
+through October 28 with the postseason. It does not score live games.
+
+### Architecture
+
+```
+reports/*.csv, *.png          data/pitchquality.db (SQLite, committed)
+  research numbers              pitches, leaderboard, meta
+  and figures                           |
+        \                               |  opened read-only
+         +------> src/pitchquality/web (FastAPI + Jinja) ------> Render free tier
+```
+
+- **Storage.** The service reads the `data/pitchquality.db` written by the live
+  pipeline, schema version 1 in `src/pitchquality/schema.sql`. It opens the file
+  read-only and returns 503 if a column it needs is missing. There is no seed
+  or fallback database: the site runs on the pipeline's file or not at all.
+- **Service.** `src/pitchquality/web` is a FastAPI app with server-rendered
+  pages and a few lines of JavaScript. It imports none of the modeling code, so
+  the deploy installs `requirements-web.txt` (FastAPI, Uvicorn, Jinja) and
+  skips pandas and scikit-learn.
+- **Model card.** The headline AUCs, validity tables, and figures come from the
+  research run in `reports/`. The saved model's train and held-out AUCs come
+  from the database's `meta` table.
+- **Deploy.** `render.yaml` defines one free web service. Render builds on every
+  push to the deployed branch.
+
+Run it locally:
+
+```bash
+.venv/bin/pip install -e ".[dev,web]"
+.venv/bin/uvicorn pitchquality.web.app:app --reload
+```
+
+### How the site reads the database
+
+- **Ranking floor.** Storage keeps every pitcher with a scored swing, 825 in
+  2026. The site ranks pitchers with at least 100 swings, the floor the
+  research report uses, and that is the default view. Without a floor the top
+  of the board is a 29-swing sample. "All pitchers" shows everyone, unranked
+  below 100.
+- **Stuff score.** `leaderboard.avg_stuff` is the mean of the pitch-level
+  `stuff_score`, which is scaled to the 2025 training swings. Pitcher averages
+  sit in a narrow band around 100. This is not the Stuff+ index in the research
+  tables above, which is scaled across pitcher means and spreads much wider.
+  The site labels it "Stuff" and says so.
+- **Expected whiff.** `leaderboard.expected_whiff` is the full model's mean, so
+  whiff over expected is what is left after stuff, location, and count. Pitcher
+  pages also show the stuff model's expectation, averaged from
+  `pitches.stuff_whiff`.
+
+### How the daily refresh reaches the site
+
+Today it does not need to, and the automatic path is not wired.
+
+1. `.github/workflows/refresh.yml` runs daily, scores any new pitches with the
+   saved model, and uploads the database as the `pitchquality-live` artifact.
+   It does not commit, push, or deploy.
+2. Render's free tier has no persistent disk, so the site serves the database
+   committed in the repo at the deployed commit.
+3. The 2026 season is complete and the committed database holds all of it. The
+   refresh finds nothing new in the offseason, so the site and the artifact
+   hold the same data.
+
+To put a refreshed database on the site by hand, download the artifact with the
+commands in the pipeline section above, commit `data/pitchquality.db`, and
+push. Render redeploys on the push. Automating that before the 2027 season
+needs one decision: either the workflow gets write permission to commit the
+database, or the Render build gets a GitHub token to download the artifact.
+
 ## Layout
 
 ```
@@ -132,8 +216,11 @@ src/pitchquality/
   grades.py     Stuff+ index, predictive validity, sample-size sweep, blending
   plots.py      calibration, velocity curve, movement maps, scatter
   cli.py        end-to-end pipeline
-tests/          58 tests
+  live.py       frozen-model scoring and the SQLite refresh
+  web/          live API and dashboard (FastAPI, reads data/pitchquality.db)
+tests/          112 tests
 reports/        CSVs + figures written by the pipeline
+render.yaml     Render free-tier deploy for the dashboard
 ```
 
 ## Live data pipeline (2026 season complete)

@@ -1,0 +1,15 @@
+# Render blueprint for the live API and dashboard. Free tier only.
+services:
+  - type: web
+    name: pitchquality
+    runtime: python
+    plan: free
+    # The service reads the data/pitchquality.db committed in the repo. The
+    # build installs the web requirements only, not the modeling stack.
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: uvicorn --app-dir src pitchquality.web.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
