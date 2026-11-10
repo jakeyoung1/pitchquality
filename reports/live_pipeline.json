@@ -1,0 +1,22 @@
+{
+  "status": "updated",
+  "model_version": "statcast-2025-e9719a2ed638",
+  "train_auc": 0.8085296545326592,
+  "test_auc": 0.7874784459302822,
+  "stuff_train_auc": 0.787985270016301,
+  "stuff_test_auc": 0.7668424416913047,
+  "stuff_reference_mean": 0.23156337939145458,
+  "stuff_reference_std": 0.18226618560116709,
+  "schema_version": 1,
+  "score_scope": "eligible swings from features.build",
+  "season": 2026,
+  "season_start": "2026-03-26",
+  "season_end": "2026-10-28",
+  "backfill_start": "2026-08-20",
+  "last_fetch_date": "2026-10-28",
+  "last_pitch_date": "2026-10-28",
+  "source_rows": 728085,
+  "rows_scored": 342865,
+  "backfill_source_rows": 165286,
+  "backfill_rows_scored": 78317
+}

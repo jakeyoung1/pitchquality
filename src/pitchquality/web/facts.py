@@ -1,8 +1,9 @@
-"""Numbers the dashboard quotes that live in prose rather than in a CSV.
+"""Numbers the dashboard quotes that live in prose rather than in a CSV or the
+database.
 
 Every constant here is copied from a file committed to this repo, named next to
 it. ``tests/test_web.py`` asserts each one still appears in its source, so the
-site cannot drift from the README without a test failing.
+site cannot drift from the repo without a test failing.
 """
 from __future__ import annotations
 
@@ -10,8 +11,8 @@ from __future__ import annotations
 # angles were added.
 STUFF_AUC_BEFORE_VAA = "0.652"
 
-# README.md, "Data" table. Swings and whiff rates also appear in
-# reports/run_output.txt.
+# README.md, "Data" table: the research run behind reports/. Swings and whiff
+# rates also appear in reports/run_output.txt.
 DATA_ROWS = [
     {
         "season": "2025",
@@ -29,14 +30,14 @@ DATA_ROWS = [
     },
 ]
 
-# scripts_fetch.py, WINDOWS["2026"]: the date range behind the committed
-# reports. The seed uses these for the database's coverage metadata.
-REPORT_FIRST_GAME_DATE = "2026-03-26"
-REPORT_LAST_GAME_DATE = "2026-08-19"
+# src/pitchquality/cli.py grades pitchers with ``min_swings=100``, and
+# reports/run_output.txt heads its leaderboard "min 100 swings". The database
+# stores every pitcher, so the site applies the same floor before ranking.
+QUALIFIED_MIN_SWINGS = 100
 
-# README.md, crossover figure and "Where the model earns its keep": the model
-# out-predicts a pitcher's own whiff rate below roughly 125 swings, and the
-# pitcher's own results win with 300 swings in hand.
+# README.md, crossover figure and "Where the model earns its keep": the stuff
+# model out-predicts a pitcher's own whiff rate below roughly 125 swings, and
+# the pitcher's own results win with 300 swings in hand.
 MODEL_LEADS_BELOW_SWINGS = 125
 OUTCOME_LEADS_FROM_SWINGS = 300
 
@@ -88,4 +89,14 @@ PITCH_TYPE_NAMES = {
     "CH": "Changeup",
     "FS": "Splitter",
     "SV": "Slurve",
+}
+
+# Statcast ``game_type`` codes kept by the pipeline (README.md, "Storage
+# contract and score definitions": R, F, D, L, W).
+GAME_TYPE_NAMES = {
+    "R": "Regular season",
+    "F": "Wild Card Series",
+    "D": "Division Series",
+    "L": "League Championship Series",
+    "W": "World Series",
 }

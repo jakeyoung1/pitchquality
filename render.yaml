@@ -4,9 +4,9 @@ services:
     name: pitchquality
     runtime: python
     plan: free
-    # The seed step only runs when data/pitchquality.db is absent, so a
-    # database written by the data pipeline is never replaced.
-    buildCommand: pip install -r requirements-web.txt && PYTHONPATH=src python -m pitchquality.web.seed --if-missing
+    # The service reads the data/pitchquality.db committed in the repo. The
+    # build installs the web requirements only, not the modeling stack.
+    buildCommand: pip install -r requirements-web.txt
     startCommand: uvicorn --app-dir src pitchquality.web.app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     autoDeploy: true

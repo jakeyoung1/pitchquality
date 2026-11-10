@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% set nav = "model" %}
 {% set k = card.key_numbers %}
+{% set live = card.live_model %}
+{% set cov = card.coverage %}
 
 {% macro dec(value, places=4) %}{{ ("%." ~ places ~ "f") | format(value) | replace("0.", ".", 1) }}{% endmacro %}
 
@@ -10,9 +12,9 @@
   <h1>An expected-whiff model for pitch evaluation</h1>
   <p class="lede">
     The model estimates the probability that a swing misses from the physical properties
-    of the pitch. It was trained on 2025 Statcast and evaluated on a 2026 season it never
-    saw. The aim is to separate stuff, which travels with the pitcher, from results, which
-    also carry the hitters he faced, where he located, and luck.
+    of the pitch. It was trained on 2025 Statcast and evaluated on a stretch of 2026 it
+    never saw. The aim is to separate stuff, which travels with the pitcher, from results,
+    which also carry the hitters he faced, where he located, and luck.
   </p>
 </section>
 
@@ -21,24 +23,23 @@
   <p>
     The 2026 MLB season is over. Nothing on this site scores live games. The database
     holds the {{ seasons | join(", ") }} season{{ "s" if seasons | length > 1 }}
-    {% if card.coverage.first_game_date %}from {{ card.coverage.first_game_date | nicedate }}{% endif %}
-    through <strong>{{ card.coverage.last_fetch_date | nicedate }}</strong>, covering
-    {{ pitchers | intc }} pitchers.
+    {% if cov.season_start %}from {{ cov.season_start | nicedate }}{% endif %}
+    through <strong>{{ cov.last_pitch_date | nicedate }}</strong>, postseason included:
+    {{ card.database.rows_scored | intc }} scored swings from
+    {{ card.database.pitchers | intc }} pitchers.
   </p>
-  {% if card.coverage.seeded_from_reports %}
+  {% if cov.backfill_start %}
   <p>
-    This build reads a database seeded from the reports committed in the repo. Those
-    reports stop at {{ card.coverage.last_fetch_date | nicedate }}, so the last weeks of
-    the season are not in yet, and there are no pitch-level rows behind the pitcher pages.
-    Both arrive when the data pipeline lands. Until then every number here is one the
-    repo already published.
-  </p>
-  {% else %}
-  <p>
-    A scheduled job checks for new pitches each day. In the offseason it finds none and
-    changes nothing.
+    The held-out test behind the AUCs on this page ends the day before
+    {{ cov.backfill_start | nicedate }}. The
+    {{ card.database.backfill_rows_scored | intc }} swings from that date on were scored by
+    the same saved model. They are on the leaderboard but are not part of any AUC here.
   </p>
   {% endif %}
+  <p>
+    A daily job in the repo checks for new pitches and finds none in the offseason. The
+    site serves the database committed with the code.
+  </p>
 </section>
 
 <dl class="tiles">
@@ -63,7 +64,10 @@
     <dd class="tile-note">stuff model, before and after</dd>
   </div>
 </dl>
-<p class="panel-note center">All AUCs are on the held-out 2026 season. The leaderboard uses the stuff model.</p>
+<p class="panel-note center">
+  Held-out 2026 AUCs from the research run in the repo's reports. The saved model that
+  scores this site is within 0.001 of each, shown <a href="#saved-model">below</a>.
+</p>
 
 <section class="panel prose">
   <h2>The fix that mattered</h2>
@@ -83,8 +87,66 @@
   </p>
 </section>
 
+<section class="panel" id="saved-model">
+  <h2>The saved model behind the leaderboard</h2>
+  <p class="panel-note">
+    The live pipeline fit the same two models once on the same 2025 window, saved them,
+    and scores every swing with that saved copy. It never refits. These AUCs come from
+    that fit and are read from the database.
+  </p>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead>
+        <tr>
+          <th scope="col">Model</th>
+          <th scope="col" class="num">Train AUC, 2025</th>
+          <th scope="col" class="num">Held-out AUC, 2026</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Stuff (drives the stuff score)</th>
+          <td class="num">{{ meta.stuff_train_auc | auc }}</td>
+          <td class="num">{{ meta.stuff_test_auc | auc }}</td>
+        </tr>
+        <tr>
+          <th scope="row">Full (drives expected whiff)</th>
+          <td class="num">{{ meta.train_auc | auc }}</td>
+          <td class="num">{{ meta.test_auc | auc }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="panel-note">
+    Model version <code>{{ live.model_version or "not recorded" }}</code>.
+    {% if live.held_out_swings and research.research_held_out_swings %}
+    The source data moved a little between the two downloads: the held-out window had
+    {{ research.research_held_out_swings | intc }} swings in the research run and
+    {{ live.held_out_swings | intc }} in this one. That is why the numbers differ slightly
+    from the tiles above.
+    {% endif %}
+  </p>
+
+  <h3>How the stuff score is built</h3>
+  <p class="panel-note">
+    Each swing's stuff-model probability is rescaled so that 100 is the mean and 10 points
+    is one standard deviation of the 2025 training swings{% if live.stuff_reference_mean and live.stuff_reference_std %}
+    (mean {{ live.stuff_reference_mean | rate }}, standard deviation {{ live.stuff_reference_std | rate }}){% endif %}.
+    Those two reference values are frozen with the model, so a score means the same thing
+    in every refresh. A pitcher's leaderboard score is the mean over all scored swings.
+    Averages of many pitches bunch together, so pitchers land in a narrow band around 100.
+    The Stuff+ index in the research report is scaled across pitcher averages instead and
+    spreads much wider. The two are not interchangeable.
+  </p>
+  <p class="panel-note">
+    Expected whiff on the leaderboard is the full model's mean. Whiff over expected is
+    actual minus that. Ranks start at {{ qualified_min }} swings, the floor the research
+    report uses. The database itself keeps every pitcher.
+  </p>
+</section>
+
 <section class="panel">
-  <h2>Data</h2>
+  <h2>Data in the research run</h2>
   <div class="table-wrap">
     <table class="board compact">
       <thead>
@@ -117,8 +179,8 @@
 
 {% if card.performance %}
 <section class="panel">
-  <h2>Held-out performance</h2>
-  <p class="panel-note">Trained on 2025, tested on 2026.</p>
+  <h2>Held-out performance, research run</h2>
+  <p class="panel-note">Trained on 2025, tested on 2026 through Aug 19.</p>
   <div class="table-wrap">
     <table class="board compact">
       <thead>
@@ -150,9 +212,9 @@
 <section class="panel">
   <h2>Does the grade predict anything?</h2>
   <p class="panel-note">
-    The 2026 test season is split at its median date. Each first-half number is used to
+    The 2026 test window is split at its median date. Each first-half number is used to
     forecast second-half whiff rate for the same
-    {{ card.predictive_validity[0].n_pitchers }} pitchers.
+    {{ card.predictive_validity[0].n_pitchers }} pitchers. The model here is the stuff model.
   </p>
   <div class="table-wrap">
     <table class="board compact">
@@ -221,7 +283,10 @@
 {% if card.figures %}
 <section class="panel">
   <h2>Figures</h2>
-  <p class="panel-note">Written by the modeling pipeline to the repo's reports folder.</p>
+  <p class="panel-note">
+    Written by the research run to the repo's reports folder. Where a figure shows Stuff+,
+    it is the report's index, not the stuff score on the leaderboard.
+  </p>
   <div class="figures">
     {% for fig in card.figures %}
     <figure>
@@ -236,7 +301,7 @@
 {% if card.calibration %}
 <section class="panel">
   <h2>Calibration by decile</h2>
-  <p class="panel-note">Full model on the held-out season. Gap is observed minus predicted.</p>
+  <p class="panel-note">Full model on the held-out window, research run. Gap is observed minus predicted.</p>
   <div class="table-wrap">
     <table class="board compact">
       <thead>
@@ -278,19 +343,12 @@
 
 <section class="panel">
   <h2>Database metadata</h2>
-  <p class="panel-note">Read from the meta table at request time.</p>
+  <p class="panel-note">Every row of the meta table, read at request time.</p>
   <div class="table-wrap">
     <table class="board compact meta">
       <tbody>
-        <tr><th scope="row">model_version</th><td>{{ meta.model_version or "not recorded" }}</td></tr>
-        <tr><th scope="row">last_fetch_date</th><td>{{ meta.last_fetch_date or "not recorded" }}</td></tr>
-        <tr>
-          <th scope="row">train_auc</th>
-          <td>{% if meta.train_auc %}{{ meta.train_auc }}{% else %}not recorded. The repo's reports hold held-out AUCs only.{% endif %}</td>
-        </tr>
-        <tr><th scope="row">test_auc</th><td>{{ meta.test_auc or "not recorded" }}</td></tr>
-        {% for key, value in meta.items() if key not in ("model_version", "last_fetch_date", "train_auc", "test_auc") %}
-        <tr><th scope="row">{{ key }}</th><td>{{ value if value is not none else "not recorded" }}</td></tr>
+        {% for key, value in meta | dictsort %}
+        <tr><th scope="row">{{ key }}</th><td>{{ value }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -301,7 +359,7 @@
   <h2>API</h2>
   <ul class="endpoints">
     <li><a href="/api/leaderboard"><code>GET /api/leaderboard</code></a> ranked pitchers, with search, sort, and paging</li>
-    <li><code>GET /api/pitchers/{id}</code> one pitcher's season lines and pitch breakdown</li>
+    <li><code>GET /api/pitchers/{id}</code> one pitcher's season lines and pitch-level splits</li>
     <li><a href="/api/model-card"><code>GET /api/model-card</code></a> everything on this page as JSON</li>
     <li><a href="/api/health"><code>GET /api/health</code></a> database status</li>
   </ul>

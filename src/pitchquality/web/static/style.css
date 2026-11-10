@@ -112,7 +112,7 @@ h3 { margin: 26px 0 6px; font-size: 16.5px; }
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
   margin: 26px 0 0; padding: 0;
 }
-.tiles.five { grid-template-columns: 1.25fr repeat(4, 1fr); }
+.tiles.six { grid-template-columns: repeat(3, 1fr); }
 .tile {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 14px 16px 13px; min-width: 0;
@@ -206,6 +206,7 @@ table.board { width: 100%; border-collapse: collapse; font-size: 15px; font-vari
 .key dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 12px 0 0; }
 .key dt { font-weight: 650; }
 .key dd { margin: 3px 0 0; color: var(--muted); font-size: 14.5px; }
+.key-note { margin-top: 16px; }
 
 .panel { margin-top: 36px; }
 .panel.status {
@@ -265,8 +266,7 @@ table.board { width: 100%; border-collapse: collapse; font-size: 15px; font-vari
 .site-footer p { margin: 0 0 6px; max-width: 80ch; }
 
 @media (max-width: 860px) {
-  .tiles, .tiles.five { grid-template-columns: repeat(2, 1fr); }
-  .tiles.five .tile.lead { grid-column: 1 / -1; }
+  .tiles, .tiles.six { grid-template-columns: repeat(2, 1fr); }
   .key dl, .limits, .figures { grid-template-columns: 1fr; }
 }
 

@@ -70,9 +70,15 @@ def load(reports_dir: Path) -> dict:
         "baseline_auc": round_half_up(baseline) if baseline else None,
         "stuff_auc_before_vaa": facts.STUFF_AUC_BEFORE_VAA,
     }
+    # The pipeline's one saved fit wrote its own held-out table. Its swing
+    # count shows the source data moved slightly between the two downloads.
+    live_performance = _numeric(_rows(reports_dir / "live_baseline_performance.csv"), ("model",))
     return {
         "key_numbers": key_numbers,
         "performance": performance,
+        "live_performance": live_performance,
+        "live_held_out_swings": live_performance[0]["n_pitches"] if live_performance else None,
+        "research_held_out_swings": performance[0]["n_pitches"] if performance else None,
         "calibration": _numeric(_rows(reports_dir / "calibration.csv")),
         "predictive_validity": _numeric(_rows(reports_dir / "blend_validity.csv"), ("predictor",)),
         "validity_by_threshold": _numeric(_rows(reports_dir / "validity_by_threshold.csv")),

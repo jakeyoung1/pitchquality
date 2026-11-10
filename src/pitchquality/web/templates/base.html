@@ -6,7 +6,7 @@
   <title>{{ title }} | pitchquality</title>
   <meta name="description" content="Expected-whiff pitch grades from Statcast pitch shape. Trained on 2025, tested on a held-out 2026 season.">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css?v=3">
+  <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -27,17 +27,6 @@
     </div>
   </header>
 
-  {% if coverage.seeded_from_reports %}
-  <div class="notice" role="note">
-    <div class="wrap">
-      Showing the 2026 grades committed in this repo's reports, through
-      {{ coverage.last_fetch_date | nicedate }}. Pitch-level detail and the rest of the
-      season are added when the data pipeline lands.
-      <a href="/model#status">Details</a>
-    </div>
-  </div>
-  {% endif %}
-
   <main id="main" class="wrap">
     {% block content %}{% endblock %}
   </main>
@@ -46,8 +35,8 @@
     <div class="wrap">
       <p>
         Statcast pitch data from Baseball Savant. Model trained on 2025 and tested on a
-        held-out 2026 season.
-        {% if meta.last_fetch_date %}Data through {{ meta.last_fetch_date | nicedate }}.{% endif %}
+        held-out stretch of 2026.
+        {% if coverage.last_pitch_date %}Data through {{ coverage.last_pitch_date | nicedate }}.{% endif %}
         The 2026 season is over, so nothing here scores live games.
       </p>
       <p>
@@ -59,6 +48,6 @@
       </p>
     </div>
   </footer>
-  <script src="/static/app.js?v=3" defer></script>
+  <script src="/static/app.js?v=4" defer></script>
 </body>
 </html>

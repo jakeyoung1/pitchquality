@@ -1,0 +1,18 @@
+{
+  "schedule_source": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate=2026-08-20&endDate=2026-10-28",
+  "backfill_start": "2026-08-20",
+  "backfill_end": "2026-10-28",
+  "completed_games": 559,
+  "source_games": 559,
+  "missing_games": [],
+  "extra_games": [],
+  "cancelled_games_excluded": [
+    {
+      "game_pk": 823490,
+      "date": "2026-09-27",
+      "status": "Cancelled",
+      "reason": "Rain"
+    }
+  ],
+  "source_rows": 165286
+}

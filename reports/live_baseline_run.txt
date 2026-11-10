@@ -1,0 +1,80 @@
+loading 2025 (train) and 2026 (holdout)...
+  train swings: 335,769   whiff rate: 0.2316
+  test  swings: 264,548   whiff rate: 0.2297
+fitting stuff model (physical release characteristics only)...
+fitting full model (stuff + location + count)...
+
+=== HELD-OUT PERFORMANCE (train 2025 -> test 2026) ===
+                          model    auc  log_loss   brier  n_pitches
+     baseline (pitch-type mean) 0.6134    0.5233 0.17160     264548
+            stuff (no location) 0.7668    0.4469 0.14203     264548
+full (stuff + location + count) 0.7875    0.4304 0.13601     264548
+saved frozen models -> models\whiff-2025.joblib
+
+=== CALIBRATION (full model, deciles) ===
+ predicted  observed     n       gap
+  0.051918  0.044566 26455 -0.007351
+  0.072889  0.064033 26455 -0.008856
+  0.092319  0.087620 26455 -0.004699
+  0.114640  0.110002 26454 -0.004638
+  0.142387  0.141901 26455 -0.000485
+  0.178979  0.182007 26455  0.003028
+  0.230250  0.231118 26454  0.000868
+  0.306290  0.297297 26455 -0.008993
+  0.444951  0.417993 26455 -0.026958
+  0.766046  0.720129 26455 -0.045917
+
+=== TOP 15 BY STUFF+ (2026, min 100 swings, n=554) ===
+       player_name  swings  stuff_plus  expected_whiff_rate  actual_whiff_rate
+     Miller, Mason     397       141.8               0.3852             0.4433
+       Hader, Josh     251       135.8               0.3626             0.3386
+     Mu�oz, Andr�s     365       134.8               0.3586             0.3836
+     Helsley, Ryan     124       133.1               0.3524             0.3629
+   Little, Brendon     142       133.0               0.3520             0.3521
+ Estrada, Jeremiah     232       128.6               0.3354             0.2931
+     Hoffman, Jeff     513       128.2               0.3341             0.3333
+    Cruz, Fernando     392       127.5               0.3313             0.3801
+      Snell, Blake     130       125.1               0.3225             0.3231
+   Cornelio, Riley     197       124.1               0.3187             0.2843
+      Burns, Chase    1092       123.7               0.3171             0.2912
+      Sanders, Cam     169       123.7               0.3172             0.3550
+Misiorowski, Jacob    1071       123.2               0.3152             0.3520
+    Varland, Louis     526       122.1               0.3110             0.2567
+      Miller, Erik     298       121.5               0.3087             0.3322
+
+=== MOST WHIFFS OVER EXPECTED (deception / sequencing beyond raw stuff) ===
+     player_name  swings  stuff_plus  expected_whiff_rate  actual_whiff_rate  whiff_over_expected
+       Mey, Luis     142       101.7               0.2346             0.3451               0.1104
+Natera Jr., Samy     219        99.9               0.2278             0.3288               0.1010
+ Fernandez, Ryan     111       101.6               0.2339             0.3333               0.0994
+   Barlow, Scott     248       103.4               0.2409             0.3226               0.0817
+    Wells, Tyler     485        94.1               0.2061             0.2845               0.0785
+  Garcia, Julian     200        97.4               0.2182             0.2950               0.0768
+   Sommers, Drew     205       102.2               0.2363             0.3122               0.0759
+Parker, Mitchell     333        89.6               0.1889             0.2643               0.0753
+    Garcia, Rico     386       100.7               0.2309             0.3057               0.0748
+   Jameson, Drey     123        95.8               0.2123             0.2846               0.0722
+
+=== PREDICTIVE VALIDITY (2026 first half -> second half) ===
+                        predictor      r  r_squared  n_pitchers
+first-half expected whiff (model) 0.6459     0.4172         330
+first-half actual whiff (outcome) 0.6368     0.4056         330
+
+=== MODEL vs OUTCOME BY SAMPLE SIZE (h2 target fixed at 150+ swings) ===
+ min_swings_h1  n_pitchers  r_model  r_outcome  model_advantage
+            25         335   0.6166     0.5879           0.0288
+            50         324   0.6193     0.6212          -0.0019
+            75         319   0.6310     0.6243           0.0067
+           100         302   0.6513     0.6424           0.0089
+           150         268   0.6775     0.6863          -0.0088
+           200         211   0.6362     0.6631          -0.0270
+           300         133   0.6170     0.6726          -0.0556
+
+=== DOES THE MODEL ADD ANYTHING ON TOP OF OUTCOMES? ===
+    predictor      r  r_squared  n_pitchers
+  model alone 0.6459     0.4172         330
+outcome alone 0.6368     0.4056         330
+  50/50 blend 0.6831     0.4666         330
+
+writing figures...
+done -> reports/

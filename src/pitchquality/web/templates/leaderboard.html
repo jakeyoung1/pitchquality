@@ -12,37 +12,37 @@
 
 {% block content %}
 <section class="intro">
-  <p class="eyebrow">{{ season }} season</p>
-  <h1>{{ stuff_label }} leaderboard</h1>
+  <p class="eyebrow">{{ season }} season, final</p>
+  <h1>Stuff leaderboard</h1>
   <p class="lede">
     How often a swing should miss, judged from the pitch's shape alone: velocity, spin,
-    movement, release, and approach angle. Location and count are left out, so the grade
-    describes the stuff rather than the results.
-    {% if meta.stuff_scale == "stuff_plus" %}100 is average and every 10 points is one standard deviation.{% endif %}
+    movement, release, and approach angle. Each swing gets a stuff score where 100 is the
+    average swing in the 2025 training data and 10 points is one standard deviation of
+    those swings. A
+    pitcher's score is the mean over every swing, so the board sits in a narrow band
+    around 100.
   </p>
 </section>
 
 <dl class="tiles">
   <div class="tile">
-    <dt>Pitchers</dt>
-    <dd>{{ season_total | intc }}</dd>
+    <dt>Pitchers ranked</dt>
+    <dd>{{ season_qualified | intc }}</dd>
+    <dd class="tile-note">{{ qualified_min }}+ swings, of {{ season_total | intc }} scored</dd>
   </div>
   <div class="tile">
-    <dt>{{ sample_label }} scored</dt>
+    <dt>Swings scored</dt>
     <dd>{{ season_sample | intc }}</dd>
+    <dd class="tile-note">takes and bunts are not scored</dd>
   </div>
   <div class="tile">
     <dt>Data through</dt>
-    <dd>{{ meta.last_fetch_date | nicedate }}</dd>
+    <dd>{{ coverage.last_pitch_date | nicedate }}</dd>
+    <dd class="tile-note">{{ "last game of the season" if coverage.season_end and coverage.last_pitch_date == coverage.season_end else "latest scored game" }}</dd>
   </div>
   <div class="tile">
-    {% if meta.test_auc_stuff %}
     <dt>Stuff model AUC</dt>
-    <dd>{{ meta.test_auc_stuff | half_up }}</dd>
-    {% else %}
-    <dt>Held-out AUC</dt>
-    <dd>{% if meta.test_auc %}{{ meta.test_auc | half_up }}{% else %}n/a{% endif %}</dd>
-    {% endif %}
+    <dd>{{ meta.stuff_test_auc | half_up if meta.stuff_test_auc else "n/a" }}</dd>
     <dd class="tile-note">held-out 2026, <a href="/model">model card</a></dd>
   </div>
 </dl>
@@ -53,13 +53,14 @@
     <input type="search" name="q" value="{{ q }}" placeholder="Name or MLBAM id" maxlength="80" autocomplete="off">
   </label>
   <label class="field">
-    <span>Minimum {{ sample_label | lower }}</span>
+    <span>Minimum swings</span>
     <select name="min" data-autosubmit>
       {% for choice in min_choices %}
-      <option value="{{ choice if choice else '' }}" {% if choice == min %}selected{% endif %}>
-        {{ "All" if not choice else (choice | intc) ~ "+" }}
+      <option value="{{ choice }}" {% if choice == min %}selected{% endif %}>
+        {{ "All pitchers" if not choice else (choice | intc) ~ "+" }}
       </option>
       {% endfor %}
+      {% if min not in min_choices %}<option value="{{ min }}" selected>{{ min | intc }}+</option>{% endif %}
     </select>
   </label>
   {% if seasons | length > 1 %}
@@ -81,33 +82,33 @@
 <div class="table-wrap">
   <table class="board">
     <caption class="sr-only">
-      {{ season }} pitchers ranked by {{ stuff_label }}. Column headers are links that sort the table.
+      {{ season }} pitchers ranked by stuff score. Column headers are links that sort the table.
     </caption>
     <thead>
       <tr>
-        <th scope="col" class="num rank-col" title="Rank by {{ stuff_label }} among all {{ season_total }} pitchers">#</th>
+        <th scope="col" class="num rank-col" title="Rank by stuff score among the {{ season_qualified }} pitchers with {{ qualified_min }} or more swings">#</th>
         {{ th("name", "Pitcher", numeric=false) }}
-        {{ th("pitches", sample_label, title="Scored " ~ (sample_label | lower)) }}
-        {{ th("avg_stuff", stuff_label, title="Grade from the stuff model") }}
-        {{ th("expected_whiff", "xWhiff", title="Expected whiff rate per swing, from the stuff model") }}
+        {{ th("pitches", "Swings", title="Swings the model scored") }}
+        {{ th("avg_stuff", "Stuff", title="Mean stuff score over every scored swing") }}
+        {{ th("expected_whiff", "xWhiff", title="Expected whiff rate per swing from the full model: stuff, location, and count") }}
         {{ th("actual_whiff", "Whiff", title="Actual whiff rate per swing") }}
         {{ th("whiff_over_expected", "Whiff over exp.", title="Actual minus expected whiff rate") }}
       </tr>
     </thead>
     <tbody>
       {% for r in rows %}
-      {% set woe = r.whiff_over_expected or 0 %}
+      {% set woe = r.whiff_over_expected %}
       <tr>
-        <td class="num rank-col">{{ r.rank }}</td>
+        <td class="num rank-col" {% if not r.qualified %}title="Under {{ qualified_min }} swings, not ranked"{% endif %}>{{ r.rank if r.qualified else "" }}</td>
         <th scope="row" class="name"><a href="/pitchers/{{ r.id | urlencode }}">{{ r.name }}</a></th>
         <td class="num">{{ r.pitches | intc }}</td>
-        <td class="num"><span class="grade {{ tier(r.avg_stuff) }}">{{ r.avg_stuff | stuff }}</span></td>
+        <td class="num"><span class="grade {{ tier(r) }}">{{ r.avg_stuff | stuff }}</span></td>
         <td class="num">{{ r.expected_whiff | rate }}</td>
         <td class="num">{{ r.actual_whiff | rate }}</td>
         <td class="num woe">
-          <span class="woe-value {{ 'pos' if woe > 0 else ('neg' if woe < 0 else '') }}">{{ r.whiff_over_expected | signed }}</span>
+          <span class="woe-value {{ 'pos' if woe > 0 else ('neg' if woe < 0 else '') }}">{{ woe | signed }}</span>
           <span class="woe-bar" aria-hidden="true">
-            <span class="{{ 'pos' if woe > 0 else 'neg' }}" style="width: {{ '%.1f' | format((woe | abs) / spread * 50) }}%"></span>
+            <span class="{{ 'pos' if woe > 0 else 'neg' }}" style="width: {{ '%.1f' | format([(woe | abs) / spread, 1] | min * 50) }}%"></span>
           </span>
         </td>
       </tr>
@@ -118,8 +119,8 @@
 
 <nav class="pager" aria-label="Pages">
   <p>
-    {{ first_shown | intc }} to {{ last_shown | intc }} of {{ total | intc }}
-    {% if filtered %}matching{% endif %} pitchers
+    {{ first_shown | intc }} to {{ last_shown | intc }} of {{ total | intc }} pitchers
+    {% if min %}with {{ min | intc }}+ swings{% endif %}
   </p>
   <div class="pager-links">
     {% if page_number > 1 %}
@@ -133,8 +134,9 @@
 </nav>
 {% else %}
 <div class="empty">
-  <p>No pitchers match{% if q %} “{{ q }}”{% endif %}{% if min %} with at least {{ min | intc }} {{ sample_label | lower }}{% endif %}.</p>
-  <p><a href="/">Show the whole leaderboard</a></p>
+  <p>No pitchers match{% if q %} “{{ q }}”{% endif %}{% if min %} with at least {{ min | intc }} swings{% endif %}.</p>
+  {% if min %}<p><a href="{{ link(min=0) }}">Search all {{ season_total | intc }} pitchers</a></p>{% endif %}
+  <p><a href="/">Back to the default board</a></p>
 </div>
 {% endif %}
 
@@ -142,20 +144,31 @@
   <h2>Reading the table</h2>
   <dl>
     <div>
-      <dt>{{ stuff_label }}</dt>
-      <dd>Expected whiff rate from the stuff model, put on an index.</dd>
+      <dt>Stuff</dt>
+      <dd>
+        Mean stuff score, from the stuff model only. It is not the Stuff+ index in the
+        research report, which is scaled across pitchers and spreads much wider.
+      </dd>
     </div>
     <div>
       <dt>xWhiff and Whiff</dt>
-      <dd>Expected and actual whiff rate per swing. A pitch nobody swings at is not counted.</dd>
+      <dd>
+        Expected and actual whiff rate per swing. Expected comes from the full model,
+        which also sees location and count. A pitch nobody swings at is not counted.
+      </dd>
     </div>
     <div>
       <dt>Whiff over expected</dt>
       <dd>
-        Actual minus expected. Pitchers well above zero get misses their raw stuff does
-        not explain, which points at deception or sequencing.
+        Actual minus expected: the misses left over once stuff, location, and count are
+        accounted for.
       </dd>
     </div>
   </dl>
+  <p class="panel-note key-note">
+    The database keeps every pitcher with a scored swing. Ranks and the default view
+    start at {{ qualified_min }} swings, the floor the research report uses. A handful of
+    swings can put anyone at the top.
+  </p>
 </section>
 {% endblock %}

@@ -11,10 +11,10 @@ does to the ball, which travels with him — from **results**, which are
 contaminated by the hitters he faced, where he located, and luck.
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -e ".[dev]"
+python3.12 -m venv .venv && .venv/bin/pip install -c requirements-model.txt -e ".[dev]"
 .venv/bin/python scripts_fetch.py      # download + cache Statcast (~2 min)
 .venv/bin/python -m pitchquality.cli   # fit, evaluate, write reports/
-.venv/bin/python -m pytest tests -q    # 94 tests
+.venv/bin/python -m pytest tests -q    # 112 tests
 ```
 
 ## Data
@@ -132,34 +132,35 @@ after a quiet spell can take a minute.
 
 | Page | What it shows |
 |---|---|
-| `/` | 2026 leaderboard: search, sort, minimum-sample filter |
-| `/pitchers/{id}` | One pitcher's season line, rank, and pitch-type split |
-| `/model` | Model card: held-out AUCs, validity tests, figures, limitations |
+| `/` | 2026 leaderboard: search, sort, minimum-swings filter |
+| `/pitchers/{id}` | One pitcher's season line and rank, with splits by pitch type, month, and regular season versus postseason |
+| `/model` | Model card: held-out AUCs, the saved model's own AUCs, validity tests, figures, limitations |
 | `/api/leaderboard`, `/api/pitchers/{id}`, `/api/model-card`, `/api/health` | The same data as JSON. Interactive docs at `/docs` |
 
-The 2026 season is over, so the site shows a finished season. It does not score
-live games.
+The 2026 season is over, so the site shows the finished season, March 26
+through October 28 with the postseason. It does not score live games.
 
 ### Architecture
 
 ```
-reports/*.csv, *.png          data/pitchquality.db (SQLite)
-  model card numbers            pitches, leaderboard, meta
+reports/*.csv, *.png          data/pitchquality.db (SQLite, committed)
+  research numbers              pitches, leaderboard, meta
   and figures                           |
         \                               |  opened read-only
          +------> src/pitchquality/web (FastAPI + Jinja) ------> Render free tier
 ```
 
-- **Storage.** `data/pitchquality.db` holds three tables: `pitches` (one row per
-  scored pitch), `leaderboard` (one row per pitcher and season), and `meta`
-  (key/value: `model_version`, `last_fetch_date`, `train_auc`, `test_auc`). The
-  service reads those columns by name and never writes.
+- **Storage.** The service reads the `data/pitchquality.db` written by the live
+  pipeline, schema version 1 in `src/pitchquality/schema.sql`. It opens the file
+  read-only and returns 503 if a column it needs is missing. There is no seed
+  or fallback database: the site runs on the pipeline's file or not at all.
 - **Service.** `src/pitchquality/web` is a FastAPI app with server-rendered
-  pages and a few lines of JavaScript. It imports none of the modeling
-  code, so the deploy installs `requirements-web.txt` (FastAPI, Uvicorn, Jinja)
-  and skips pandas and scikit-learn.
-- **Model card.** The AUCs, validity tables, and figures come straight from the
-  files in `reports/`.
+  pages and a few lines of JavaScript. It imports none of the modeling code, so
+  the deploy installs `requirements-web.txt` (FastAPI, Uvicorn, Jinja) and
+  skips pandas and scikit-learn.
+- **Model card.** The headline AUCs, validity tables, and figures come from the
+  research run in `reports/`. The saved model's train and held-out AUCs come
+  from the database's `meta` table.
 - **Deploy.** `render.yaml` defines one free web service. Render builds on every
   push to the deployed branch.
 
@@ -167,35 +168,44 @@ Run it locally:
 
 ```bash
 .venv/bin/pip install -e ".[dev,web]"
-.venv/bin/python -m pitchquality.web.seed        # build data/pitchquality.db from reports/
 .venv/bin/uvicorn pitchquality.web.app:app --reload
 ```
 
-### What the database holds today
+### How the site reads the database
 
-The data pipeline that backfills the rest of 2026 and writes pitch-level rows
-has not landed yet. Until it does, `python -m pitchquality.web.seed` builds the
-database from the reports already committed here: the 554 pitcher grades in
-`reports/pitcher_stuff_grades.csv` and the held-out AUCs in
-`reports/model_performance.csv`. That covers 2026 through Aug 19. The `pitches`
-table is created empty and `train_auc` is left blank, because the repo holds no
-pitch-level data and no recorded training AUC. Nothing is filled in by hand.
+- **Ranking floor.** Storage keeps every pitcher with a scored swing, 825 in
+  2026. The site ranks pitchers with at least 100 swings, the floor the
+  research report uses, and that is the default view. Without a floor the top
+  of the board is a 29-swing sample. "All pitchers" shows everyone, unranked
+  below 100.
+- **Stuff score.** `leaderboard.avg_stuff` is the mean of the pitch-level
+  `stuff_score`, which is scaled to the 2025 training swings. Pitcher averages
+  sit in a narrow band around 100. This is not the Stuff+ index in the research
+  tables above, which is scaled across pitcher means and spreads much wider.
+  The site labels it "Stuff" and says so.
+- **Expected whiff.** `leaderboard.expected_whiff` is the full model's mean, so
+  whiff over expected is what is left after stuff, location, and count. Pitcher
+  pages also show the stuff model's expectation, averaged from
+  `pitches.stuff_whiff`.
 
-### How the daily refresh works
+### How the daily refresh reaches the site
 
-The refresh is the pipeline's job, and it is designed around one constraint:
-Render's free tier has no persistent disk, so the database has to arrive with
-the deploy.
+Today it does not need to, and the automatic path is not wired.
 
-1. A scheduled GitHub Actions job fetches any new Statcast pitches, scores them
-   with the saved model, and rewrites `data/pitchquality.db`.
-2. The job commits the database. Render sees the push and redeploys.
-3. The build runs `python -m pitchquality.web.seed --if-missing`. With a
-   committed database present, that step does nothing and the service serves
-   the pipeline's file. With none, it falls back to the seed described above.
+1. `.github/workflows/refresh.yml` runs daily, scores any new pitches with the
+   saved model, and uploads the database as the `pitchquality-live` artifact.
+   It does not commit, push, or deploy.
+2. Render's free tier has no persistent disk, so the site serves the database
+   committed in the repo at the deployed commit.
+3. The 2026 season is complete and the committed database holds all of it. The
+   refresh finds nothing new in the offseason, so the site and the artifact
+   hold the same data.
 
-In the offseason step 1 finds no new pitches and the job changes nothing. Steps
-1 and 2 ship with the pipeline. Step 3 and the service are in this repo now.
+To put a refreshed database on the site by hand, download the artifact with the
+commands in the pipeline section above, commit `data/pitchquality.db`, and
+push. Render redeploys on the push. Automating that before the 2027 season
+needs one decision: either the workflow gets write permission to commit the
+database, or the Render build gets a GitHub token to download the artifact.
 
 ## Layout
 
@@ -206,8 +216,149 @@ src/pitchquality/
   grades.py     Stuff+ index, predictive validity, sample-size sweep, blending
   plots.py      calibration, velocity curve, movement maps, scatter
   cli.py        end-to-end pipeline
+  live.py       frozen-model scoring and the SQLite refresh
   web/          live API and dashboard (FastAPI, reads data/pitchquality.db)
-tests/          94 tests
+tests/          112 tests
 reports/        CSVs + figures written by the pipeline
 render.yaml     Render free-tier deploy for the dashboard
 ```
+
+## Live data pipeline (2026 season complete)
+
+`data/pitchquality.db` is a committed, ready-to-read SQLite snapshot. The pipeline
+backfilled **August 20 through October 28, 2026**, including postseason games.
+October 28 is the final game date in the
+[MLB season schedule](https://statsapi.mlb.com/api/v1/schedule?sportId=1&startDate=2026-08-20&endDate=2026-11-09).
+The backfill downloaded 165,286 source pitches and scored **78,317 eligible
+swings**. With the original March 26-August 19 window, the DB contains **342,865
+scored swings** from 728,085 source pitches. Excluded rows are takes, bunts,
+unsupported pitch types, and swings missing the inputs already required by
+`features.build()`. `leaderboard.pitches` counts eligible swings, not all pitches
+thrown. No sample threshold is applied in storage.
+`reports/backfill_coverage.json` verifies all 559 completed games against the MLB
+schedule, with no missing or extra games. The rain-cancelled September 27 game
+823490 had no pitches and is documented separately in that report.
+
+The original models were fit once on the unchanged 2025 window (711,897 source
+pitches, 335,769 eligible swings), under the
+[Jake-approved clarification on relay #132](https://github.com/jakeyoung1/agent-relay/issues/132#issuecomment-6751376907).
+The original 2026 holdout remains March 26-August 19. It has 264,548 eligible
+swings in this run. Actual AUCs from this fit:
+
+| Model | Train AUC (2025) | Held-out AUC (2026 through Aug 19) |
+|---|---|---|
+| Stuff | 0.78798527 | 0.76684244 |
+| Full | 0.80852965 | 0.78747845 |
+
+These values are in `meta`, `models/whiff-2025.json`, and
+`reports/live_pipeline.json`; the baseline run log and performance CSV are in
+`reports/live_baseline_*`. The earlier research tables and figures above retain
+their original run's values. Live consumers should use DB metadata. No features,
+targets, hyperparameters, training windows, or model prediction code changed.
+
+### Run and replay
+
+From the repo root, with Python 3.12:
+
+```bash
+pip install -c requirements-model.txt -e ".[dev]"
+python -m pitchquality.live
+python -m pytest -q
+```
+
+On Windows, use `.venv\Scripts\python.exe` after activating/installing in the venv.
+The normal live command loads `models/whiff-2025.joblib` and never fits a model.
+It clamps the fetch date to yesterday or October 28, whichever is earlier.
+The shipped DB is complete, so the 2026 offseason returns a successful `no-op`
+without fetching data, loading estimators, or changing the database. The pipeline
+is scoped to 2026; enabling another season is a separate configuration change.
+
+To explicitly replay source corrections after season completion:
+
+```bash
+python -m pitchquality.live --backfill
+```
+
+This refetches the original 2026 window and August 20-October 28, reuses the frozen
+estimators, and replaces the season in one transaction. Normal refresh reuses
+the original window's parquet cache and fetches the tail through the new date.
+The whole season is processed together so each pitch's fastball differentials
+use the same season-wide reference window. A larger window can revise earlier
+scores as the pitcher throws more fastballs; the feature algorithm is unchanged.
+SQLite uses the Statcast identity `(game_pk, at_bat_number, pitch_number)` to avoid
+duplicates. Replays also remove previously scored rows that become ineligible.
+Failures preserve existing pitches, leaderboard rows, and the fetch watermark.
+Source parquet files are local caches, not committed data. Caches from older
+versions of `scripts_fetch.py` need refetching to acquire pitch identities.
+
+The one-time artifact was created with:
+
+```bash
+python scripts_fetch.py
+python -m pitchquality.cli --save-model models/whiff-2025.joblib
+```
+
+That research command refuses to overwrite an existing bundle. Do not run it for
+refreshes. The bundle contains both estimators and their feature ordering; its
+JSON manifest records the dependency versions, training/evaluation windows,
+metrics, and SHA-256. Loading checks the manifest, hash, and feature order. Use
+the pinned environment because
+[scikit-learn does not support loading models across different versions](https://scikit-learn.org/stable/model_persistence.html).
+Load only this trusted repository's joblib file.
+
+### Storage contract and score definitions
+
+The exact schema is [`src/pitchquality/schema.sql`](src/pitchquality/schema.sql)
+and was [posted on relay #132](https://github.com/jakeyoung1/agent-relay/issues/132#issuecomment-6751472326)
+for the API builder. All rates are fractions, not percentages.
+
+- `pitches.expected_whiff`: full-model P(whiff | swing).
+- `pitches.stuff_whiff`: stuff-model P(whiff | swing).
+- `pitches.actual_whiff`: 0 or 1, using the original whiff definition; foul tips
+  are contact.
+- `pitches.stuff_score`: `100 + 10 * (stuff_whiff - mean) / std`, using the frozen
+  2025 training-swing prediction distribution (population standard deviation).
+  The reference mean/std are stored in the model manifest and `meta`. This
+  pitch-level scale differs from the historical report's scaling across pitcher
+  means. It stays comparable between refresh batches.
+- `leaderboard`: one row per pitcher/season, arithmetic means of the pitch
+  scores and probabilities. `whiff_over_expected = actual_whiff - expected_whiff`.
+- `game_type`: source Statcast code (`R`, `F`, `D`, `L`, `W`); postseason is
+  included in the 2026 season. `player_name` is retained for API display.
+- `meta`: TEXT key/value pairs. `train_auc` and `test_auc` refer to the full
+  model; `stuff_train_auc`/`stuff_test_auc` to the stuff model. `last_fetch_date`
+  is the inclusive successfully processed date, not the run time.
+  `last_pitch_date` is the latest scored game. Model version, schema version,
+  scope, season bounds, score reference, source counts, and scored counts are
+  also recorded. See `reports/live_pipeline.json` for every populated key.
+
+The API can open this DB read-only. Consumers should retain the committed
+snapshot as a fallback and check `model_version`/`schema_version` when replacing it.
+
+### Free scheduled refresh and API handoff
+
+`.github/workflows/refresh.yml` runs daily at **13:17 UTC** on GitHub's standard
+Ubuntu runner, and supports manual dispatch. It uses read-only repository
+permissions and the built-in `GITHUB_TOKEN`; no paid service or external secret
+is required. It becomes scheduled only after Jake merges the PR. Public-repo
+scheduled workflows may be disabled by GitHub after 60 days of repository
+inactivity, so the completed-season snapshot remains the durable fallback.
+
+Each run restores the latest non-expired artifact from a successful run of the
+same workflow/branch, or starts with the committed DB. It uploads the resulting
+`pitchquality-live` artifact containing `pitchquality.db`, retained for 90 days.
+An empty offseason refresh is still successful and keeps that snapshot available.
+Nothing pushes to main, publishes a release, or deploys an application.
+
+For an API consumer, download `pitchquality-live` from the latest successful
+**Refresh 2026 pitch data** run in the Actions UI and put `pitchquality.db` at
+`data/pitchquality.db`. An already authenticated GitHub CLI can also download it:
+
+```bash
+gh run list --repo jakeyoung1/pitchquality --workflow refresh.yml --branch main --status success
+gh run download RUN_ID --repo jakeyoung1/pitchquality --name pitchquality-live --dir data
+```
+
+This PR supplies the database and refresh artifact. API hosting and any automatic
+artifact ingestion by a hosted service belong to relay #133; this pipeline does
+not deploy or automatically update a running API process.
