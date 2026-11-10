@@ -440,6 +440,27 @@ class TestModelCard:
         for key in meta:
             assert f">{key}</th>" in text
 
+    def test_page_explains_the_metrics_before_it_uses_them(self, client):
+        text = client.get("/model").text
+        # Muse's copy (relay #158), word for word.
+        terms = {
+            "AUC": "How well the model separates whiffs from non-whiffs. 0.50 is a coin flip, "
+            "1.0 is perfect.",
+            "Brier score": "How far the predicted whiff chance lands from what happened, on "
+            "average. Lower is better.",
+            "Log loss": "Like Brier, but it punishes confident wrong predictions much harder. "
+            "Lower is better.",
+            "Calibration": "When the model says 30% whiff, the pitch should actually miss about "
+            "30% of the time. The calibration table checks this.",
+            "Predictive validity": "Whether first-half expected whiff forecasts second-half "
+            "actual whiff better than just using first-half actual whiff. If it does not, the "
+            "model is not adding anything.",
+        }
+        heading = text.index("<h2>How to read these numbers</h2>")
+        assert heading < text.index("<h2>The fix that mattered</h2>")
+        for term, definition in terms.items():
+            assert heading < text.index(f"<dt>{term}</dt>") < text.index(f"<dd>{definition}</dd>")
+
     def test_every_figure_is_served(self, client):
         body = client.get("/api/model-card").json()
         assert len(body["figures"]) == len(reports.FIGURES) == 5

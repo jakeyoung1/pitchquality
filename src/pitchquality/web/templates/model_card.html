@@ -69,6 +69,32 @@
   scores this site is within 0.001 of each, shown <a href="#saved-model">below</a>.
 </p>
 
+<section class="panel" id="reading">
+  <h2>How to read these numbers</h2>
+  <dl class="terms">
+    <div>
+      <dt>AUC</dt>
+      <dd>How well the model separates whiffs from non-whiffs. 0.50 is a coin flip, 1.0 is perfect.</dd>
+    </div>
+    <div>
+      <dt>Brier score</dt>
+      <dd>How far the predicted whiff chance lands from what happened, on average. Lower is better.</dd>
+    </div>
+    <div>
+      <dt>Log loss</dt>
+      <dd>Like Brier, but it punishes confident wrong predictions much harder. Lower is better.</dd>
+    </div>
+    <div>
+      <dt>Calibration</dt>
+      <dd>When the model says 30% whiff, the pitch should actually miss about 30% of the time. The calibration table checks this.</dd>
+    </div>
+    <div>
+      <dt>Predictive validity</dt>
+      <dd>Whether first-half expected whiff forecasts second-half actual whiff better than just using first-half actual whiff. If it does not, the model is not adding anything.</dd>
+    </div>
+  </dl>
+</section>
+
 <section class="panel prose">
   <h2>The fix that mattered</h2>
   <p>
