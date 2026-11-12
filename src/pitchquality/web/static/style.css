@@ -260,6 +260,10 @@ table.board { width: 100%; border-collapse: collapse; font-size: 15px; font-vari
 .limits div { padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .limits dt { font-weight: 650; }
 .limits dd { margin: 4px 0 0; color: var(--muted); font-size: 14.5px; }
+.terms { margin: 12px 0 0; max-width: 86ch; border-top: 1px solid var(--line); }
+.terms div { display: grid; grid-template-columns: 170px 1fr; gap: 4px 18px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.terms dt { font-weight: 650; }
+.terms dd { margin: 0; color: var(--muted); font-size: 14.5px; }
 .endpoints { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; }
 
 /* Footer */
@@ -273,6 +277,7 @@ table.board { width: 100%; border-collapse: collapse; font-size: 15px; font-vari
 
 @media (max-width: 560px) {
   .wrap { padding: 0 14px; }
+  .terms div { grid-template-columns: 1fr; }
   main.wrap { padding-top: 24px; }
   .bar { min-height: 0; padding-top: 10px; padding-bottom: 8px; }
   .site-header nav { margin-left: -10px; }
