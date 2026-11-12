@@ -475,6 +475,12 @@ class TestPages:
             FLOOR,
         )[0]
         assert "Stuff leaderboard" in text
+        # Jake's copy (relay #156), word for word, between the title and the board.
+        explainer = (
+            "Stuff score = expected swing-and-miss rate from the pitch itself (velocity, spin, "
+            "movement, approach angle), scaled so 100 = league average. No location, no count."
+        )
+        assert text.index("<h1>") < text.index(explainer) < text.index('<table class="board">')
         assert display_name(top[1]) in text
         assert f'href="/pitchers/{top[0]}"' in text
         assert f"Page 1 of {-(-qualified // 50)}" in text

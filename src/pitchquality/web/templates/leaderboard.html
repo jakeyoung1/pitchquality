@@ -14,13 +14,13 @@
 <section class="intro">
   <p class="eyebrow">{{ season }} season, final</p>
   <h1>Stuff leaderboard</h1>
-  <p class="lede">
-    How often a swing should miss, judged from the pitch's shape alone: velocity, spin,
-    movement, release, and approach angle. Each swing gets a stuff score where 100 is the
-    average swing in the 2025 training data and 10 points is one standard deviation of
-    those swings. A
-    pitcher's score is the mean over every swing, so the board sits in a narrow band
-    around 100.
+  <p class="lede stuff-def">
+    Stuff score = expected swing-and-miss rate from the pitch itself (velocity, spin, movement, approach angle), scaled so 100 = league average. No location, no count.
+  </p>
+  <p class="lede sub">
+    Each swing gets a stuff score where 100 is the average swing in the 2025 training
+    data and 10 points is one standard deviation of those swings. A pitcher's score is
+    the mean over every swing, so the board sits in a narrow band around 100.
   </p>
 </section>
 

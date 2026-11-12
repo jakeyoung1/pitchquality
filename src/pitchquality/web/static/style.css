@@ -105,6 +105,7 @@ h2 { margin: 0 0 8px; font-size: 20px; letter-spacing: -0.01em; }
 h3 { margin: 26px 0 6px; font-size: 16.5px; }
 .lede { margin: 0; max-width: 68ch; color: var(--muted); font-size: 17px; text-wrap: pretty; }
 .lede.sub { font-size: 15px; min-height: 1px; }
+.lede.stuff-def { margin-bottom: 8px; color: var(--ink); }
 .crumb { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
 
 /* Stat tiles */
