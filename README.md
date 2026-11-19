@@ -1,4 +1,4 @@
-# pitchquality — an expected-whiff model for pitch evaluation
+# pitchquality: an expected-whiff model for pitch evaluation
 
 [![CI](https://github.com/jakeyoung1/pitchquality/actions/workflows/ci.yml/badge.svg)](https://github.com/jakeyoung1/pitchquality/actions/workflows/ci.yml)
 
@@ -6,8 +6,8 @@ Estimates the probability that a swing misses, from the physical properties of
 the pitch. Trained on 2025 Statcast, evaluated on a **held-out 2026 season** the
 model never saw.
 
-The point is not the AUC. The point is separating **stuff** — what a pitcher
-does to the ball, which travels with him — from **results**, which are
+The point is not the AUC. The point is separating **stuff** (what a pitcher
+does to the ball, which travels with him) from **results**, which are
 contaminated by the hitters he faced, where he located, and luck.
 
 ```bash
@@ -25,7 +25,7 @@ python3.12 -m venv .venv && .venv/bin/pip install -c requirements-model.txt -e "
 | 2026 (through Aug 19) | 562,799 | 264,629 | .2296 | held-out test |
 
 Whiff is conditioned on a swing. Modeling `P(whiff | pitch)` would confound
-pitch quality with plate discipline — a pitch nobody offers at scores well for
+pitch quality with plate discipline: a pitch nobody offers at scores well for
 entirely the wrong reason.
 
 ## Held-out performance (train 2025 → test 2026)
@@ -39,7 +39,7 @@ entirely the wrong reason.
 ## The result that mattered
 
 The first version of the stuff model scored **.652 AUC** and *lost* the
-predictive-validity test — a pitcher's own past whiff rate forecast his future
+predictive-validity test: a pitcher's own past whiff rate forecast his future
 whiff rate better than the model did. That is the correct reason to reject a
 model, so the question became what it could not see.
 
@@ -63,7 +63,7 @@ Splitting 2026 at its median date and forecasting second-half whiff rate
 | **50/50 blend of the two** | **.6827** | **.4661** |
 
 The honest reading: the model beats raw outcomes, but *narrowly*. The defensible
-claim is not that stuff replaces results — it is that stuff carries information
+claim is not that stuff replaces results. It is that stuff carries information
 results do not, which is why the blend beats either alone.
 
 ### Where the model earns its keep
@@ -98,7 +98,7 @@ Ryan Helsley, Brendon Little, Jeremiah Estrada, Fernando Cruz, Jeff Hoffman,
 Blake Snell, Jacob Misiorowski. A stuff model that did *not* surface these arms
 would be broken regardless of its AUC.
 
-`whiff_over_expected` — actual minus expected — is the residual worth reading.
+`whiff_over_expected` (actual minus expected) is the residual worth reading.
 Pitchers persistently above it are getting misses their raw stuff does not
 explain, which points at deception, sequencing, or a release the model has not
 captured.
@@ -112,7 +112,7 @@ captured.
   <img src="reports/calibration.png" alt="Calibration plot of predicted versus observed whiff rate, close to the diagonal until the top decile" width="480">
 
 - **Compressed at the velocity extremes.** The model under-predicts whiffs above
-  99 mph and over-predicts below 90 — regularization pulling toward the mean.
+  99 mph and over-predicts below 90: regularization pulling toward the mean.
 - **Whiff is not run prevention.** A swing-and-miss model says nothing about
   contact quality. A complete pitch-quality metric needs an expected-damage
   component alongside this one.
